@@ -87,7 +87,7 @@
  * PA11 - Digital input with PullUp  (CAN_RX).
  * PA12 - Alternate Push Pull output (CAN_TX).
  */
-#define VAL_GPIOACRL            0xB4BF1181      /*  PA7...PA0 */
+#define VAL_GPIOACRL            0x84BF1181      /*  PA7...PA0 */
 #define VAL_GPIOACRH            0x888B8444      /* PA15...PA8 */
 #define VAL_GPIOAODR            0xFFFFFFFF
 
@@ -108,7 +108,7 @@
  * PB14 - Digital input with Push    (MISO_2).
  * PB15 - Alternate Push Pull output (MOSI_2).
  */
-#define VAL_GPIOBCRL            0x4F88811A      /*  PB7...PB0 */
+#define VAL_GPIOBCRL            0x4B88811A      /*  PB7...PB0 */
 #define VAL_GPIOBCRH            0xB8B331FF      /* PB15...PB8 */
 #define VAL_GPIOBODR            0xFFFFFFFF
 
@@ -126,7 +126,7 @@
  */
 #define VAL_GPIOCCRL            0x881A0011      /*  PC7...PC0 */
 #define VAL_GPIOCCRH            0x44888888      /* PC15...PC8 */
-#define VAL_GPIOCODR            0xFFFFFFFF
+#define VAL_GPIOCODR            0xFFFFFFBF
 
 /*
  * Port D setup.
