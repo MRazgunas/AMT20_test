@@ -60,7 +60,7 @@ endif
 # Stack size to be allocated to the Cortex-M process stack. This stack is
 # the stack used by the main() thread.
 ifeq ($(USE_PROCESS_STACKSIZE),)
-  USE_PROCESS_STACKSIZE = 0x400
+  USE_PROCESS_STACKSIZE = 0x600
 endif
 
 # Stack size to the allocated to the Cortex-M main/exceptions stack. This
@@ -82,9 +82,7 @@ endif
 # Project, sources and paths
 #
 
-ifeq ($(BUILDDIR),.)
-  BUILDDIR = build
-endif
+BUILDDIR = build
 
 PROJECT = kmti_ecu
 
@@ -103,6 +101,21 @@ include $(CHIBIOS)/os/rt/ports/ARMCMx/compilers/GCC/mk/port_v7m.mk
 # Other files (optional).
 include $(CHIBIOS)/test/rt/test.mk
 
+# mavlink header generation
+MAVLINK_SUBDIR = v1.0
+MAVLINK_WIRE_PROTOCOL = 1.0
+MAVLINK_DIR = modules/mavlink
+MESSAGE_DEFINITIONS = modules/mavlink/message_definitions/v1.0
+# MAVLINK_HEADERS = 
+MAVLINK_OUTPUT_DIR = $(BUILDDIR)/modules/mavlink/$(MAVLINK_SUBDIR)
+
+#@echo Generating MAVLink headers...
+#goto mavlink module directory and run the most recent generator script
+#@echo "Generating C code using mavgen.py located at" /modules/mavlink/
+#$(info $(shell python $(MAVLINK_DIR)/pymavlink/tools/mavgen.py --lang=C --wire-protocol=$(MAVLINK_WIRE_PROTOCOL) --output=$(MAVLINK_OUTPUT_DIR) $(MESSAGE_DEFINITIONS)/ardupilotmega.xml))
+
+
+
 LDSCRIPT= $(STARTUPLD)/STM32F103xC.ld
 
 CSRC = $(STARTUPSRC) \
@@ -118,8 +131,9 @@ CSRC += $(wildcard src/*.c)	    \
 		$(wildcard src/*/*.c)	\
 		$(wildcard src/*/*/*.c)
 
-CPPSRC = $(wildcard src/*.cpp)	\
-		 $(wildcard src/*/*.cpp)
+CPPSRC = #$(wildcard src/*.cpp)	\
+		 #$(wildcard src/*/*.cpp) \
+		 #$(wildcard src/*/*/*.cpp)
 
 # List ASM source files here
 ASMSRC = $(STARTUPASM) $(PORTASM) $(OSALASM)
@@ -127,7 +141,8 @@ ASMSRC = $(STARTUPASM) $(PORTASM) $(OSALASM)
 INCDIR = $(STARTUPINC) $(KERNINC) $(PORTINC) $(OSALINC) \
          $(HALINC) $(PLATFORMINC) $(BOARDINC) $(TESTINC) \
          $(CHIBIOS)/os/various src  src/drivers \
-         $(CHIBIOS)/os/hal/lib/streams
+         $(CHIBIOS)/os/hal/lib/streams \
+         $(MAVLINK_OUTPUT_DIR)/ardupilotmega
 
 #
 # Project, sources and paths
