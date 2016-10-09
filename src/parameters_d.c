@@ -1,0 +1,58 @@
+#include "parameters_d.h"
+#include "parameters.h"
+
+#define GSCALAR(t, v, name, def) { t, name, k_param_ ## v, &v, def }
+
+int16_t format_version;
+float rpm_pid_p;
+float rpm_pid_i;
+float rpm_pid_d;
+
+const struct Info var_info[] = {
+        // @Param: FORMAT_VERSION
+        // @DisplayName: Eeprom format version number
+        // @Description: This value is incremented when changes are made to the eeprom format
+        // @User: Advanced
+        GSCALAR(AP_PARAM_INT16, format_version, "FORMAT_VERSION", 0),
+
+        // @Param: RPM_PID_P
+        // @DisplayName: RPM pid contant P
+        // @Description: This value represent P of rpm pid controller
+        // @User: Advanced
+        GSCALAR(AP_PARAM_FLOAT, rpm_pid_p, "RPM_PID_P", 0),
+
+        // @Param: RPM_PID_I
+        // @DisplayName: RPM pid contant I
+        // @Description: This value represent I of rpm pid controller
+        // @User: Advanced
+        GSCALAR(AP_PARAM_FLOAT, rpm_pid_i, "RPM_PID_I", 0),
+
+        // @Param: RPM_PID_D
+        // @DisplayName: RPM pid contant D
+        // @Description: This value represent D of rpm pid controller
+        // @User: Advanced
+        GSCALAR(AP_PARAM_FLOAT, rpm_pid_d, "RPM_PID_D", 0),
+
+        AP_VAREND,
+};
+
+
+void load_parameters(void) {
+    init_param_lib(var_info);
+    if(!check_var_info()) {
+        chSysHalt("Bad var_info table");
+    }
+
+    if(!load_value_using_pointer(&format_version) ||
+            format_version != k_format_version) {
+        //erase all parameters
+        //TODO: debug message for erasing eeprom
+        erase_all();
+
+        set_and_save_using_pointer(&format_version, (float)k_format_version, false);
+        //save the current format version
+    }
+    load_all_parameters();
+
+}
+

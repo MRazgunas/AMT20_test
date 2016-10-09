@@ -17,10 +17,13 @@
 #include "ch.h"
 #include "hal.h"
 #include "chprintf.h"
+#include "drivers/eeprom.h"
 
+#include "telemetry.h"
 #include "servo.h"
 #include "rc_input.h"
 #include "rpm.h"
+#include "parameters_d.h"
 
 /*
  * Blinker thread #1.
@@ -36,23 +39,6 @@ static THD_FUNCTION(Thread1, arg) {
         chThdSleepMilliseconds(250);
         palClearPad(GPIOC, GPIOC_LED1);
         chThdSleepMilliseconds(250);
-    }
-}
-
-/*
- * Blinker thread #2.
- */
-static THD_WORKING_AREA(waThread2, 128);
-static THD_FUNCTION(Thread2, arg) {
-
-    (void) arg;
-
-    chRegSetThreadName("blinker");
-    while (true) {
-        palSetPad(GPIOC, GPIOC_LED2);
-        chThdSleepMilliseconds(500);
-        palClearPad(GPIOC, GPIOC_LED2);
-        chThdSleepMilliseconds(500);
     }
 }
 
@@ -99,10 +85,6 @@ int main(void) {
     halInit();
     chSysInit();
 
-    init_servo();
-    init_rc_input();
-    init_rpm();
-
     uint16_t width = 0;
     uint16_t rpm = 0;
 
@@ -111,18 +93,27 @@ int main(void) {
      * PA9(TX) and PA10(RX) are routed to USART1.
      */
     sdStart(&SD1, NULL);
+    init_eeprom();
 
     /*
      * Creates the example threads.
      */
     chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO + 1, Thread1,
     NULL);
-    chThdCreateStatic(waThread2, sizeof(waThread2), NORMALPRIO + 1, Thread2,
-    NULL);
+
+    load_parameters();
+
+    //Dump first page of eeprom
+    uint8_t buff[EEPROM_PAGE_SIZE];
+    read_block(buff, 0x0, EEPROM_PAGE_SIZE);
+
+
+    init_servo();
+    init_rc_input();
+    init_rpm();
+    init_telemetry();
 
     bool running = false;
-    bool over_rpm = false;
-    uint16_t over_rpm_t = 3;
     float thr;
     uint16_t lpf_rpm = 0;
     const float lpf_beta = 0.15f;
@@ -158,16 +149,10 @@ int main(void) {
         if(tmp > 100)
             running = true;
 
-        if(lpf_rpm > 9000) {
-            over_rpm = true;
-        }
-
         if(running)
             set_servo_pwm(throttle_servo);
         else
             set_servo_pwm(width);
-
-        chprintf(&SD1, "%u %u %u\r", rpm, target_rpm, lpf_rpm);
 
         chThdSleepMilliseconds(20);
     }
