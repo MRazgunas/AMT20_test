@@ -49,4 +49,5 @@ void __early_init(void) {
  */
 void boardInit(void) {
 	AFIO->MAPR |= AFIO_MAPR_USART1_REMAP; //Remap UART1 to 58 and 59 pins
+	AFIO->MAPR |= AFIO_MAPR_I2C1_REMAP; //Remap I2C1 pins to PB8 and PB9 pins
 }

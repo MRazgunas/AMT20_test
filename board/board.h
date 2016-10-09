@@ -45,6 +45,11 @@
 #define GPIOC_LED2		        1
 #define GPIOC_THROTTLE_SERVO    5
 
+#define EEPROM_ADDRESS  0x50
+#define EEPROM_SIZE     4096 //bytes
+#define EEPROM_PAGE_SIZE 32 //bytes
+#define EEPROM_BUS      I2CD1
+
 
 /*
  * I/O ports initial setup, this configuration is established soon after reset
