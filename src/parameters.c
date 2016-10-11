@@ -1,8 +1,10 @@
 #include <math.h>
+#include <string.h>
 
 #include "ch.h"
 #include "hal.h"
 
+#include "telemetry.h"
 #include "parameters.h"
 #include "eeprom.h"
 
@@ -14,10 +16,9 @@ bool duplicate_key(uint16_t vindex, uint16_t key);
 bool scan(const Param_header *target, uint16_t *pofs);
 bool is_sentinal(const Param_header *phdr);
 bool get_base(const Info *info, ptrdiff_t *base);
-void set_value(ap_var_type type, const void *ptr, float value);
 const Info *find_var_info(const void * ptr);
-float cast_to_float(ap_var_type type, const void * ptr);
 const Info * find_by_header(Param_header phdr, void **ptr);
+void send_parameter(const Info *info, const char *name, ap_var_type var_type);
 
 const Info *_var_info;
 uint16_t _num_vars;
@@ -240,6 +241,13 @@ bool set_and_save_using_pointer(const void * ptr, float value, bool force_save) 
 
     set_value((ap_var_type)info->type, info->ptr, value);
 
+    save_parameter(ptr, force_save);
+    return true;
+}
+
+bool save_parameter(const void * ptr, bool force_save) {
+    const Info *info = find_var_info(ptr);
+
     if(info == NULL) {
         // we don't have any info how to store it
         return false;
@@ -254,7 +262,7 @@ bool set_and_save_using_pointer(const void * ptr, float value, bool force_save) 
     if(scan(&phdr, &ofs)) {
         // found an existing copy of the variable
         eeprom_write_check(info->ptr, ofs+sizeof(phdr), type_size((ap_var_type)phdr.type));
-        //TODO: send parameter value to GCS
+        send_parameter(info, info->name, info->type);
     }
 
     if(ofs == (uint16_t)~0) {
@@ -265,15 +273,14 @@ bool set_and_save_using_pointer(const void * ptr, float value, bool force_save) 
         float v1 = cast_to_float((ap_var_type)phdr.type, info->ptr);
         float v2 = (float) info->def_value;
         if(v1 == v2 && !force_save) {
-            //TODO: send parameter value to GCS
+            send_parameter(info, info->name, info->type);
             return true;
         }
         if (!force_save &&
             (phdr.type != AP_PARAM_INT32 && (fabsf(v1-v2) < 0.0001f*fabsf(v1)))) {
             // for other than 32 bit integers, we accept values within
             // 0.01 percent of the current value as being the same
-            //TODO: send parameter value to GCS
-            //send_parameter_value_all(name, (enum ap_var_type)info->type, v2);
+            send_parameter(info, info->name, info->type);
             return true;
         }
     }
@@ -288,8 +295,10 @@ bool set_and_save_using_pointer(const void * ptr, float value, bool force_save) 
     eeprom_write_check(info->ptr, ofs+sizeof(phdr), type_size((ap_var_type)phdr.type));
     eeprom_write_check(&phdr, ofs, sizeof(phdr));
 
-    //TODO: send parameter value to GCS
+    send_parameter(info, info->name, info->type);
     return true;
+
+
 }
 
 // set a AP_Param variable to a specified value
@@ -378,7 +387,86 @@ const Info * find_by_header(Param_header phdr, void **ptr) {
     return NULL;
 }
 
+Info * first_param(ParamToken *token, ap_var_type *ptype) {
+    token-> key = 0;
+    if(_num_vars == 0) {
+        return NULL;
+    }
 
+    if(ptype != NULL) {
+       *ptype = (ap_var_type)_var_info[0].type;
+    }
+ /*   ptrdiff_t base;
+    if(!get_base(&_var_info[0], &base)) {
+        // should be impossible
+        return NULL;
+    } */
 
+    return (Info *)_var_info;
+}
 
+uint16_t count_parameters(void) {
+    return _num_vars;
+}
+
+const Info * next_scalar(ParamToken *token, ap_var_type *ptype) {
+
+    const Info *ap;
+    ap_var_type type;
+    uint16_t i = token->key;
+    if(i >= _num_vars-1) {
+        return NULL;
+    }
+    i++;
+    type = (ap_var_type)_var_info[i].type;
+    ap = &_var_info[i];
+
+    token->key = i;
+    if(ptype != NULL) {
+        *ptype = type;
+    }
+    return ap;
+
+}
+
+const Info * find_using_name(const char *name, ap_var_type *ptype) {
+    for(uint16_t i = 0; i < _num_vars; i++) {
+        uint8_t type = _var_info[i].type;
+        if(strcasecmp(name, _var_info[i].name) == 0) {
+            *ptype = (ap_var_type)type;
+            return &_var_info[i];
+        }
+    }
+    return NULL;
+}
+
+// notify GCS of current value of parameter
+void notify(void * ptr) {
+
+    const Info *info = find_var_info(ptr);
+    if (info == NULL) {
+        // this is probably very bad
+        return;
+    }
+
+    char name[AP_MAX_NAME_SIZE+1];
+    strncpy(name, info->name, AP_MAX_NAME_SIZE);
+
+    uint8_t param_header_type;
+    param_header_type = info->type;
+
+    send_parameter(info, name, (ap_var_type)param_header_type);
+}
+
+void send_parameter(const Info *info, const char *name, ap_var_type var_type) {
+    if (var_type > AP_PARAM_FLOAT) {
+        // invalid
+        return;
+    }
+    if(info != NULL) {
+        // nice and simple for scalar types
+        send_parameter_value_all(name, var_type, cast_to_float(var_type, info->ptr));
+        return;
+    }
+}
 

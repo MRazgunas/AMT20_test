@@ -43,17 +43,17 @@ static THD_FUNCTION(Thread1, arg) {
 }
 
 float rpm_pid(uint16_t target_rpm, uint16_t rpm) {
-    const float Kp_rpm = 0.02f;
-    const float Ki_rpm = 0.02f;
-    const float Kd_rpm = 0.0f;
+    float Kp_rpm = rpm_pid_p;
+    float Ki_rpm = rpm_pid_i;
+    float Kd_rpm = rpm_pid_d;
 
     static float out = 0.0f;
     static float i_temp = 0;
     static float d_temp = 0;
-    static uint32_t last_time = 0;
-    uint32_t now = ST2MS(chVTGetSystemTime());
-    uint32_t dt = now - last_time;
-    last_time = now;
+    //static uint32_t last_time = 0;
+   // uint32_t now = ST2MS(chVTGetSystemTime());
+   // uint32_t dt = now - last_time;
+   // last_time = now;
 
     float rpm_scaled = rpm / 10000.0f;
     float target_rpm_scaled = target_rpm / 10000.0f;
@@ -115,7 +115,6 @@ int main(void) {
 
     bool running = false;
     float thr;
-    uint16_t lpf_rpm = 0;
     const float lpf_beta = 0.15f;
     uint16_t tmp = 0;
 
@@ -127,7 +126,7 @@ int main(void) {
         lpf_rpm = lpf_rpm - (lpf_beta * (lpf_rpm - rpm));
 
         //PWM -> RPM
-        uint16_t target_rpm = 6.5359*width - 4614.4;
+        target_rpm = 6.5359*width - 4614.4;
         if(target_rpm < 2000) target_rpm = 2000;
         else if(target_rpm > 8000) target_rpm = 8000;
 

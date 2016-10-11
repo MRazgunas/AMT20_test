@@ -14,6 +14,8 @@
 
 #define PACKED __attribute__((packed))
 
+#define AP_MAX_NAME_SIZE 16
+
 /*
   flags for variables in var_info and group tables
  */
@@ -32,7 +34,7 @@
 // no conflict with the parent
 #define AP_PARAM_NO_SHIFT           8
 
-#define AP_VAREND       { AP_PARAM_NONE, "", 0, NULL, NAN}
+#define AP_VAREND       { AP_PARAM_NONE, "", 0, NULL, NAN, 0}
 
 typedef enum ap_var_type_t {
     AP_PARAM_NONE    = 0,
@@ -62,6 +64,10 @@ typedef struct PACKED Param_header {
     uint32_t type : 5;
 } Param_header;
 
+typedef struct {
+    uint32_t key : 11;
+} ParamToken;
+
 typedef struct Info {
     uint8_t type; // AP_PARAM_*
     const char *name;
@@ -83,8 +89,15 @@ void init_param_lib(const Info *var_infop);
 bool check_var_info(void);
 bool load_value_using_pointer(const void * ptr);
 bool set_and_save_using_pointer(const void * ptr, float value, bool force_save);
+void set_value(ap_var_type type, const void *ptr, float value);
 void erase_all(void);
 bool load_all_parameters(void);
+Info * first_param(ParamToken *token, ap_var_type *ptype);
+uint16_t count_parameters(void);
+float cast_to_float(ap_var_type type, const void * ptr);
+const Info * next_scalar(ParamToken *token, ap_var_type *ptype);
+const Info * find_using_name(const char *name, ap_var_type *ptype);
+bool save_parameter(const void * ptr, bool force_save);
 
 
 #endif /* SRC_PARAMETERS_H_ */

@@ -1,7 +1,7 @@
 #include "parameters_d.h"
 #include "parameters.h"
 
-#define GSCALAR(t, v, name, def) { t, name, k_param_ ## v, &v, def }
+#define GSCALAR(t, v, name, def) { t, name, k_param_ ## v, &v, def , 0}
 
 int16_t format_version;
 float rpm_pid_p;

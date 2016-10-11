@@ -5,14 +5,24 @@
 #include "mavlink_bridge.h" /* Has to be before mavlink.h */
 #include "mavlink.h"
 #include "chprintf.h"
+#include "parameters.h"
 
 #define SERIAL_DEVICE SD1
 
 static virtual_timer_t led_vt; //Timer for rx
-position_t last_pos;
+const Info * _queued_parameter = NULL;
+ParamToken _queued_parameter_token;
+ap_var_type _queued_parameter_type;
+uint16_t _queued_parameter_index;
+uint16_t _queued_parameter_count;
 
-void requset_gps_data_stream(void);
+uint16_t target_rpm;
+uint16_t lpf_rpm;
+
 void handle_mavlink_message(mavlink_message_t msg);
+void handle_param_request_list(mavlink_message_t *msg);
+void handle_param_set(mavlink_message_t *msg);
+void queued_param_send(void);
 void blink(void);
 
 static void led_cb(void *arg) {
@@ -28,7 +38,7 @@ void blink() {
 /*
  * Mavlink receive
  */
-static THD_WORKING_AREA(waMavlinkThread, 5000);
+static THD_WORKING_AREA(waMavlinkThread, 2000);
 static THD_FUNCTION(MavlinkThread, arg) {
 
 	(void) arg;
@@ -52,11 +62,12 @@ static THD_FUNCTION(MavlinkThread, arg) {
             }
             if (mavlink_parse_char(MAVLINK_COMM_0, (uint8_t)charData, &msg, &status)) {
                 handle_mavlink_message(msg);
-                //blink(); //Blink led for received packet
+                blink(); //Blink led for received packet
             }
         } while(charData != Q_TIMEOUT);
         if(flags & SD_OVERRUN_ERROR) {
-            blink();
+            //TODO: debug message
+            //blink();
         }
 	}
 	/* This point may be reached if shut down is requested. */
@@ -74,15 +85,17 @@ static THD_FUNCTION(MavlinkTx, arg) {
     uint32_t custom_mode = 0;   ///< Custom mode, can be defined by user/adopter
     uint8_t system_state = MAV_STATE_ACTIVE; ///< System ready for flight
 
-
     mavlink_msg_heartbeat_send(MAVLINK_COMM_0, system_type, autopilot_type, system_mode, custom_mode, system_state);
-
+    uint8_t stream_trigg = 0;
 	while(true) {
-
-        // Pack the message
-        mavlink_msg_heartbeat_send(MAVLINK_COMM_0, system_type, autopilot_type, system_mode, custom_mode, system_state);
-
-        chThdSleepMilliseconds(1000);
+	    if(stream_trigg == 9) {
+	        mavlink_msg_heartbeat_send(MAVLINK_COMM_0, system_type, autopilot_type, system_mode, custom_mode, system_state);
+	        queued_param_send();
+	    }
+	    mavlink_msg_rpm_send(MAVLINK_COMM_0, (float)lpf_rpm, (float)target_rpm);
+        stream_trigg++;
+        if(stream_trigg ==10) stream_trigg = 0;
+        chThdSleepMilliseconds(100);
 	}
 }
 
@@ -94,26 +107,126 @@ void handle_mavlink_message(mavlink_message_t msg) {
 			break;
 		}
 		case MAVLINK_MSG_ID_PARAM_REQUEST_LIST: {
-			mavlink_msg_param_value_send(MAVLINK_COMM_0, "TEST1\0", 1.0f, MAV_PARAM_TYPE_UINT8, 1, 0);
-			mavlink_msg_param_value_send(MAVLINK_COMM_0, "TEST2\0", 1.0f, MAV_PARAM_TYPE_UINT8, 1, 1);
-			mavlink_msg_param_value_send(MAVLINK_COMM_0, "TEST3\0", 1.0f, MAV_PARAM_TYPE_UINT8, 1, 2);
+	        // mark the firmware version in the tlog
+		    //mavlink_msg_statustext_send(MAVLINK_COMM_0, MAV_SEVERITY_INFO, FIRMWARE_STRING);
+	        //send_text(MAV_SEVERITY_INFO, FIRMWARE_STRING);
+	        handle_param_request_list(&msg);
 			break;
 		}
-		case MAVLINK_MSG_ID_GLOBAL_POSITION_INT: {
-		    mavlink_global_position_int_t decode;
-		    mavlink_msg_global_position_int_decode(&msg,  &decode);
-		    last_pos.lat = decode.lat;
-		    last_pos.lon = decode.lon;
-		    last_pos.alt = decode.alt;
-		    last_pos.r_alt = decode.relative_alt;
-		    break;
-		}
+	    case MAVLINK_MSG_ID_PARAM_REQUEST_READ:
+	    {
+	        //handle_param_request_read(msg);
+	        break;
+	    }
+	    case MAVLINK_MSG_ID_PARAM_SET:
+	    {
+	        handle_param_set(&msg);
+	        break;
+	    }
 		case MAVLINK_MSG_ID_DATA_STREAM: {
 		    mavlink_data_stream_t decode;
 		    mavlink_msg_data_stream_decode(&msg, &decode);
 		    break;
 		}
 	}
+}
+
+void handle_param_request_list(mavlink_message_t *msg) {
+    mavlink_param_request_list_t packet;
+    mavlink_msg_param_request_list_decode(msg, &packet);
+
+    _queued_parameter = first_param(&_queued_parameter_token, &_queued_parameter_type);
+    _queued_parameter_index = 0;
+    _queued_parameter_count = count_parameters();
+}
+
+// return a MAVLink variable type given a AP_Param type
+uint8_t mav_var_type(ap_var_type t)
+{
+    if (t == AP_PARAM_INT8) {
+        return MAVLINK_TYPE_INT8_T;
+    }
+    if (t == AP_PARAM_INT16) {
+        return MAVLINK_TYPE_INT16_T;
+    }
+    if (t == AP_PARAM_INT32) {
+        return MAVLINK_TYPE_INT32_T;
+    }
+    // treat any others as float
+    return MAVLINK_TYPE_FLOAT;
+}
+
+void queued_param_send(void) {
+    if(_queued_parameter == NULL) {
+        return;
+    }
+    const Info * vp;
+    float value;
+
+    vp = _queued_parameter;
+    value = cast_to_float(_queued_parameter_type, vp->ptr);
+
+    char param_name[AP_MAX_NAME_SIZE];
+
+    strncpy(param_name, vp->name, sizeof(param_name));
+
+    mavlink_msg_param_value_send(
+        MAVLINK_COMM_0,
+        param_name,
+        value,
+        mav_var_type(_queued_parameter_type),
+        _queued_parameter_count,
+        _queued_parameter_index);
+
+    _queued_parameter = next_scalar(&_queued_parameter_token, &_queued_parameter_type);
+    _queued_parameter_index++;
+}
+
+void handle_param_set(mavlink_message_t *msg)
+{
+    mavlink_param_set_t packet;
+    mavlink_msg_param_set_decode(msg, &packet);
+    ap_var_type var_type;
+
+    // set parameter
+    const Info *vp;
+    char key[AP_MAX_NAME_SIZE+1];
+    strncpy(key, (char *)packet.param_id, AP_MAX_NAME_SIZE);
+    key[AP_MAX_NAME_SIZE] = 0;
+
+    // find existing param so we can get the old value
+    vp = find_using_name(key, &var_type);
+    if (vp == NULL) {
+        return;
+    }
+    float old_value = cast_to_float(var_type, vp->ptr);
+
+    // set the value
+    set_value(var_type, vp->ptr, packet.param_value);
+
+    /*
+      we force the save if the value is not equal to the old
+      value. This copes with the use of override values in
+      constructors, such as PID elements. Otherwise a set to the
+      default value which differs from the constructor value doesn't
+      save the change
+     */
+    bool force_save = !(packet.param_value == old_value);
+
+    // save the change
+    save_parameter(vp->ptr, force_save);
+
+}
+
+void send_parameter_value_all(const char *param_name, ap_var_type param_type,
+        float param_value) {
+    mavlink_msg_param_value_send(
+                        MAVLINK_COMM_0,
+                        param_name,
+                        param_value,
+                        mav_var_type(param_type),
+                        count_parameters(),
+                        -1);
 }
 
 void init_telemetry() {
