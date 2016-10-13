@@ -172,8 +172,6 @@ void queued_param_send(void) {
 
     vp = _queued_parameter;
     value = cast_to_float(_queued_parameter_type, vp->ptr);
-    float * ptr = &value;
-    size_t si = sizeof(value);
 
     char param_name[AP_MAX_NAME_SIZE];
 
