@@ -135,7 +135,12 @@ int main(void) {
         if(thr > 0.5f) thr = 0.5f;
 
         //Servo min range 1012 max 1930
-        uint16_t throttle_servo = 918 * thr + 1012;
+        throttle_servo = 918 * thr + 1012;
+
+        if(!running) {
+            throttle_servo = width;
+        }
+
         if(throttle_servo < 1012) throttle_servo = 1012;
         else if(throttle_servo > 1930) throttle_servo = 1930;
 
@@ -148,10 +153,7 @@ int main(void) {
         if(tmp > 100)
             running = true;
 
-        if(running)
-            set_servo_pwm(throttle_servo);
-        else
-            set_servo_pwm(width);
+        set_servo_pwm(throttle_servo);
 
         chThdSleepMilliseconds(20);
     }

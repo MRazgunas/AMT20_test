@@ -1,12 +1,18 @@
+#include "ch.h"
+#include "hal.h"
+
 #include "parameters_d.h"
 #include "parameters.h"
+#include "telemetry.h"
 
 #define GSCALAR(t, v, name, def) { t, name, k_param_ ## v, &v, def , 0}
+#define GSCALARA(t, v, arr, name, def) { t, name, k_param_ ## v, &arr, def , 0} //for array type
 
 int16_t format_version;
 float rpm_pid_p;
 float rpm_pid_i;
 float rpm_pid_d;
+int16_t stream_rates[NUM_STREAMS];
 
 const struct Info var_info[] = {
         // @Param: FORMAT_VERSION
@@ -32,6 +38,30 @@ const struct Info var_info[] = {
         // @Description: This value represent D of rpm pid controller
         // @User: Advanced
         GSCALAR(AP_PARAM_FLOAT, rpm_pid_d, "RPM_PID_D", 0),
+
+        // @Param: SR_PARAM
+        // @DisplayName: Parameter stream frequency
+        // @Description: This is frequency of param stream
+        // @User: Advanced
+        GSCALARA(AP_PARAM_INT16, stream_param, stream_rates[STREAM_PARAMS], "SR_PARAM", 10),
+
+        // @Param: SR_SENSOR
+        // @DisplayName: Sensor stream frequency
+        // @Description: This is frequency of sensor stream
+        // @User: Advanced
+        GSCALARA(AP_PARAM_INT16, stream_sensor, stream_rates[STREAM_RAW_SENSORS], "SR_SENSOR", 10),
+
+        // @Param: SR_RC_CHAN
+        // @DisplayName: RC Channels stream frequency
+        // @Description: This is frequency of RC channel streams
+        // @User: Advanced
+        GSCALARA(AP_PARAM_INT16, stream_rc_chan, stream_rates[STREAM_RC_CHANNELS], "SR_RC_CHANN", 10),
+
+        // @Param: SR_PID_CONT
+        // @DisplayName: PID controller stream frequency
+        // @Description: This is frequency of PID controller streams
+        // @User: Advanced
+        GSCALARA(AP_PARAM_INT16, stream_controller, stream_rates[STREAM_RAW_CONTROLLER], "SR_PID_CONT", 10),
 
         AP_VAREND,
 };

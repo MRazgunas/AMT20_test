@@ -6,6 +6,8 @@
 #include "mavlink.h"
 #include "chprintf.h"
 #include "parameters.h"
+#include "parameters_d.h"
+#include "rc_input.h"
 
 #define SERIAL_DEVICE SD1
 
@@ -18,11 +20,17 @@ uint16_t _queued_parameter_count;
 
 uint16_t target_rpm;
 uint16_t lpf_rpm;
+uint16_t throttle_servo;
+
+// number of 50Hz ticks until we next send this stream
+uint8_t stream_ticks[NUM_STREAMS];
 
 void handle_mavlink_message(mavlink_message_t msg);
 void handle_param_request_list(mavlink_message_t *msg);
 void handle_param_set(mavlink_message_t *msg);
 void queued_param_send(void);
+bool stream_trigger(enum streams stream_num);
+void data_stream_send(void);
 void blink(void);
 
 static void led_cb(void *arg) {
@@ -79,23 +87,22 @@ static THD_FUNCTION(MavlinkTx, arg) {
 
     // Define the system type, in this case an airplane
     uint8_t system_type = MAV_TYPE_GIMBAL;
-    uint8_t autopilot_type = MAV_AUTOPILOT_INVALID;
+    uint8_t autopilot_type = MAV_AUTOPILOT_ARDUPILOTMEGA;
 
     uint8_t system_mode = MAV_MODE_AUTO_ARMED; ///< Booting up
     uint32_t custom_mode = 0;   ///< Custom mode, can be defined by user/adopter
     uint8_t system_state = MAV_STATE_ACTIVE; ///< System ready for flight
 
-    mavlink_msg_heartbeat_send(MAVLINK_COMM_0, system_type, autopilot_type, system_mode, custom_mode, system_state);
-    uint8_t stream_trigg = 0;
+    systime_t last_1hz = ST2MS(chVTGetSystemTime());
 	while(true) {
-	    if(stream_trigg == 9) {
+	    systime_t now = ST2MS(chVTGetSystemTime());
+	    if(abs(now - last_1hz) > 1000) {
 	        mavlink_msg_heartbeat_send(MAVLINK_COMM_0, system_type, autopilot_type, system_mode, custom_mode, system_state);
-	        queued_param_send();
+	        last_1hz = now;
+	        blink();
 	    }
-	    mavlink_msg_rpm_send(MAVLINK_COMM_0, (float)lpf_rpm, (float)target_rpm);
-        stream_trigg++;
-        if(stream_trigg ==10) stream_trigg = 0;
-        chThdSleepMilliseconds(100);
+	    data_stream_send();
+        chThdSleepMilliseconds(20);
 	}
 }
 
@@ -165,6 +172,8 @@ void queued_param_send(void) {
 
     vp = _queued_parameter;
     value = cast_to_float(_queued_parameter_type, vp->ptr);
+    float * ptr = &value;
+    size_t si = sizeof(value);
 
     char param_name[AP_MAX_NAME_SIZE];
 
@@ -227,6 +236,55 @@ void send_parameter_value_all(const char *param_name, ap_var_type param_type,
                         mav_var_type(param_type),
                         count_parameters(),
                         -1);
+}
+
+void data_stream_send(void) {
+
+    if (_queued_parameter != NULL) {
+        if (stream_rates[STREAM_PARAMS] <= 0) {
+            stream_rates[STREAM_PARAMS] = 10;
+        }
+        if (stream_trigger(STREAM_PARAMS)) {
+            queued_param_send();
+        }
+    }
+
+    if (stream_trigger(STREAM_RAW_SENSORS)) {
+        mavlink_msg_rpm_send(MAVLINK_COMM_0, (float)lpf_rpm, (float)target_rpm);
+    }
+
+    if (stream_trigger(STREAM_RAW_CONTROLLER)) {
+
+    }
+
+    if (stream_trigger(STREAM_RC_CHANNELS)) {
+        mavlink_msg_rc_channels_raw_send(MAVLINK_COMM_0, ST2MS(chVTGetSystemTime()),
+                0, get_rc_input(), 0, 0, 0, 0, 0, 0, 0, 0);
+        mavlink_msg_servo_output_raw_send(MAVLINK_COMM_0, ST2MS(chVTGetSystemTime()),
+                0, throttle_servo, 0, 0, 0, 0, 0, 0, 0);
+    }
+}
+
+// see if we should send a stream now. Called at 50Hz
+bool stream_trigger(enum streams stream_num)
+{
+    if (stream_num >= NUM_STREAMS) {
+        return false;
+    }
+    float rate = (uint8_t)stream_rates[stream_num];
+
+    if (stream_ticks[stream_num] == 0) {
+        // we're triggering now, setup the next trigger point
+        if (rate > 50) {
+            rate = 50;
+        }
+        stream_ticks[stream_num] = (50 / rate) - 1;
+        return true;
+    }
+
+    // count down at 50Hz
+    stream_ticks[stream_num]--;
+    return false;
 }
 
 void init_telemetry() {
