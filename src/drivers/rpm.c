@@ -2,9 +2,10 @@
 #include "hal.h"
 
 #include "rpm.h"
+#include "parameters_d.h"
 
 #define ICU_FREQUENCY 100000
-#define MIN_RPM 100
+#define MIN_RPM 1000
 
 static bool init = false;
 
@@ -26,7 +27,10 @@ static void icuwidthcb(ICUDriver *icup) {
 
 static void icuperiodcb(ICUDriver *icup) {
     last_period_rpm = icuGetPeriodX(icup);
-    last_rpm = (60 * ICU_FREQUENCY) / last_period_rpm;
+    uint16_t rpm = (60 * ICU_FREQUENCY) / last_period_rpm;
+    //Low pass filter rpm
+    last_rpm = last_rpm - (rpm_lpf_beta * (last_rpm - rpm));
+
 
     /* Set timeout virtual timer if we don't get more callback
      * int given time it will set rpm to 0*/

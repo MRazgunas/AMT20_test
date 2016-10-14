@@ -12,6 +12,7 @@ int16_t format_version;
 float rpm_pid_p;
 float rpm_pid_i;
 float rpm_pid_d;
+float rpm_lpf_beta;
 int16_t stream_rates[NUM_STREAMS];
 
 const struct Info var_info[] = {
@@ -38,6 +39,12 @@ const struct Info var_info[] = {
         // @Description: This value represent D of rpm pid controller
         // @User: Advanced
         GSCALAR(AP_PARAM_FLOAT, rpm_pid_d, "RPM_PID_D", 0),
+
+        // @Param: RPM_LPF_BETA
+        // @DisplayName: RPM LPF filter beta
+        // @Description: This value is const of lpf filter for RPM
+        // @User: Advanced
+        GSCALAR(AP_PARAM_FLOAT, rpm_lpf_beta, "RPM_LPF_BETA", 0.15f),
 
         // @Param: SR_PARAM
         // @DisplayName: Parameter stream frequency

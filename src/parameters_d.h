@@ -24,6 +24,7 @@ enum {
     k_param_stream_sensor,
     k_param_stream_rc_chan,
     k_param_stream_controller,
+    k_param_rpm_lpf_beta,
 };
 
 
@@ -31,6 +32,7 @@ enum {
 extern float rpm_pid_p;
 extern float rpm_pid_i;
 extern float rpm_pid_d;
+extern float rpm_lpf_beta;
 extern int16_t stream_rates[NUM_STREAMS];
 
 void load_parameters(void);

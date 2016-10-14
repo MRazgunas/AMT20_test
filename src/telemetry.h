@@ -17,7 +17,6 @@ void send_parameter_value_all(const char *param_name, ap_var_type param_type,
         float param_value);
 
 extern uint16_t target_rpm;
-extern uint16_t lpf_rpm;
 extern uint16_t throttle_servo;
 
 #endif /* SRC_TELEMETRY_H_ */

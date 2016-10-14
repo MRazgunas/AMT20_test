@@ -1,6 +1,8 @@
 #include "ch.h"
 #include "hal.h"
 
+#include "stdlib.h"
+
 #include "telemetry.h"
 #include "mavlink_bridge.h" /* Has to be before mavlink.h */
 #include "mavlink.h"
@@ -8,6 +10,7 @@
 #include "parameters.h"
 #include "parameters_d.h"
 #include "rc_input.h"
+#include "rpm.h"
 
 #define SERIAL_DEVICE SD1
 
@@ -19,7 +22,6 @@ uint16_t _queued_parameter_index;
 uint16_t _queued_parameter_count;
 
 uint16_t target_rpm;
-uint16_t lpf_rpm;
 uint16_t throttle_servo;
 
 // number of 50Hz ticks until we next send this stream
@@ -248,7 +250,7 @@ void data_stream_send(void) {
     }
 
     if (stream_trigger(STREAM_RAW_SENSORS)) {
-        mavlink_msg_rpm_send(MAVLINK_COMM_0, (float)lpf_rpm, (float)target_rpm);
+        mavlink_msg_rpm_send(MAVLINK_COMM_0, (float)get_rpm(), (float)target_rpm);
     }
 
     if (stream_trigger(STREAM_RAW_CONTROLLER)) {

@@ -115,22 +115,18 @@ int main(void) {
 
     bool running = false;
     float thr;
-    const float lpf_beta = 0.15f;
     uint16_t tmp = 0;
 
     while (TRUE) {
         width = get_rc_input();
         rpm = get_rpm();
 
-        //Low pass filter rpm
-        lpf_rpm = lpf_rpm - (lpf_beta * (lpf_rpm - rpm));
-
         //PWM -> RPM
         target_rpm = 6.5359*width - 4614.4;
         if(target_rpm < 2000) target_rpm = 2000;
         else if(target_rpm > 8000) target_rpm = 8000;
 
-        thr = rpm_pid(target_rpm, lpf_rpm);
+        thr = rpm_pid(target_rpm, rpm);
 
         if(thr > 0.5f) thr = 0.5f;
 
@@ -144,7 +140,7 @@ int main(void) {
         if(throttle_servo < 1012) throttle_servo = 1012;
         else if(throttle_servo > 1930) throttle_servo = 1930;
 
-        if(lpf_rpm > 6000 && !running) {
+        if(rpm > 6000 && !running) {
             tmp++;
         }
         else
