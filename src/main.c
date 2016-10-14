@@ -24,6 +24,7 @@
 #include "rc_input.h"
 #include "rpm.h"
 #include "parameters_d.h"
+#include "pid_rpm.h"
 
 /*
  * Blinker thread #1.
@@ -40,45 +41,6 @@ static THD_FUNCTION(Thread1, arg) {
         palClearPad(GPIOC, GPIOC_LED1);
         chThdSleepMilliseconds(250);
     }
-}
-
-float rpm_pid(uint16_t target_rpm, uint16_t rpm) {
-    float Kp_rpm = rpm_pid_p;
-    float Ki_rpm = rpm_pid_i;
-    float Kd_rpm = rpm_pid_d;
-
-    static float out = 0.0f;
-    static float i_temp = 0;
-    static float d_temp = 0;
-    //static uint32_t last_time = 0;
-   // uint32_t now = ST2MS(chVTGetSystemTime());
-   // uint32_t dt = now - last_time;
-   // last_time = now;
-
-    float rpm_scaled = rpm / 10000.0f;
-    float target_rpm_scaled = target_rpm / 10000.0f;
-
-    float err = target_rpm_scaled - rpm_scaled;
-
-    //Calculate P term
-    float p_term = Kp_rpm * err;
-
-    //Don't change integral if output is saturated
-    if(out < 1.0f && out > 0.0f)
-        i_temp += (err);
-    //Calculate I term
-    float i_term = Ki_rpm * i_temp;
-
-    float d_term = Kd_rpm * (err - d_temp);
-    d_temp = err;
-
-    out = p_term + i_term + d_term;
-    if(out > 1.0f)
-        out = 1.0f;
-    else if(out < 0.0f)
-        out = 0.0f;
-
-    return out;
 }
 
 int main(void) {
@@ -126,7 +88,7 @@ int main(void) {
         if(target_rpm < 2000) target_rpm = 2000;
         else if(target_rpm > 8000) target_rpm = 8000;
 
-        thr = rpm_pid(target_rpm, rpm);
+        thr = apply_rpm_pid(target_rpm, rpm);
 
         if(thr > 0.5f) thr = 0.5f;
 
