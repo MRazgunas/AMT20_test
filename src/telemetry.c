@@ -20,6 +20,7 @@ ParamToken _queued_parameter_token;
 ap_var_type _queued_parameter_type;
 uint16_t _queued_parameter_index;
 uint16_t _queued_parameter_count;
+float voltage;
 
 uint16_t target_rpm;
 uint16_t throttle_servo;
@@ -251,6 +252,9 @@ void data_stream_send(void) {
 
     if (stream_trigger(STREAM_RAW_SENSORS)) {
         mavlink_msg_rpm_send(MAVLINK_COMM_0, (float)get_rpm(), (float)target_rpm);
+        uint16_t volt_mil = voltage * 1000;
+        mavlink_msg_sys_status_send(MAVLINK_COMM_0, 0, 0, 0, 0, volt_mil, 0, 0, 0,
+                0, 0, 0, 0, 0);
     }
 
     if (stream_trigger(STREAM_RAW_CONTROLLER)) {

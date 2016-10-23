@@ -14,6 +14,7 @@ float rpm_pid_i;
 float rpm_pid_d;
 float rpm_lpf_beta;
 int16_t stream_rates[NUM_STREAMS];
+int16_t volt_pid_p, volt_pid_i, volt_pid_d;
 
 const struct Info var_info[] = {
         // @Param: FORMAT_VERSION
@@ -69,6 +70,24 @@ const struct Info var_info[] = {
         // @Description: This is frequency of PID controller streams
         // @User: Advanced
         GSCALARA(AP_PARAM_INT16, stream_controller, stream_rates[STREAM_RAW_CONTROLLER], "SR_PID_CONT", 10),
+
+        // @Param: VOLT_PID_P
+        // @DisplayName: RPM LPF filter beta
+        // @Description: This value is const of lpf filter for RPM
+        // @User: Advanced
+        GSCALAR(AP_PARAM_INT16, volt_pid_p, "VOLT_PID_P", 5),
+
+        // @Param: VOLT_PID_I
+        // @DisplayName: RPM LPF filter beta
+        // @Description: This value is const of lpf filter for RPM
+        // @User: Advanced
+        GSCALAR(AP_PARAM_INT16, volt_pid_i, "VOLT_PID_I", 5),
+
+        // @Param: VOLT_PID_D
+        // @DisplayName: RPM LPF filter beta
+        // @Description: This value is const of lpf filter for RPM
+        // @User: Advanced
+        GSCALAR(AP_PARAM_INT16, volt_pid_d, "VOLT_PID_D", 0),
 
         AP_VAREND,
 };

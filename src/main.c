@@ -25,6 +25,7 @@
 #include "rpm.h"
 #include "parameters_d.h"
 #include "pid_rpm.h"
+#include "voltage_pid.h"
 
 /*
  * Blinker thread #1.
@@ -43,6 +44,41 @@ static THD_FUNCTION(Thread1, arg) {
     }
 }
 
+/*
+ * ADC conversion group.
+ * Mode:        Linear buffer, 8 samples of 1 channel, SW triggered.
+ * Channels:    IN0.
+ */
+static const ADCConversionGroup adcVoltage = {
+FALSE,
+1,
+NULL,
+NULL,//adcerrorcallback,
+0, 0, /* CR1, CR2 */
+0, /* SMPR1 */
+ADC_SMPR2_SMP_AN6(ADC_SAMPLE_41P5), /* SMPR2 */
+ADC_SQR1_NUM_CH(1), /* SQR1 */
+0, /* SQR2 */
+ADC_SQR3_SQ1_N(ADC_CHANNEL_IN6)  /* SQR3 */
+};
+
+static adcsample_t samples1[8];
+
+float measure_voltage(void) {
+    float voltage;
+
+    adcConvert(&ADCD1, &adcVoltage, samples1, 8);
+    uint16_t sum = 0;
+    for(int i = 0; i < 8; i++) {
+        sum += samples1[i];
+    }
+    float avg = sum / 8.0f;
+
+    voltage = avg*0.0282307938;
+
+    return voltage;
+}
+
 int main(void) {
     halInit();
     chSysInit();
@@ -55,6 +91,7 @@ int main(void) {
      * PA9(TX) and PA10(RX) are routed to USART1.
      */
     sdStart(&SD1, NULL);
+    adcStart(&ADCD1, NULL);
     init_eeprom();
 
     /*
@@ -78,31 +115,41 @@ int main(void) {
     bool running = false;
     float thr;
     uint16_t tmp = 0;
+    uint16_t run_timeout = 0;
 
     while (TRUE) {
         width = get_rc_input();
+        apply_filter();
         rpm = get_rpm();
+        voltage = measure_voltage();
 
         //PWM -> RPM
         target_rpm = 6.5359*width - 4614.4;
         if(target_rpm < 2000) target_rpm = 2000;
         else if(target_rpm > 8000) target_rpm = 8000;
 
+        uint16_t target_rrpm = apply_voltage_pid(40.0f, voltage);
         thr = apply_rpm_pid(target_rpm, rpm);
 
-        if(thr > 0.5f) thr = 0.5f;
+        if(thr > 0.4f) thr = 0.4f;
 
         //Servo min range 1012 max 1930
         throttle_servo = 918 * thr + 1012;
 
         if(!running) {
             throttle_servo = width;
+            reset_integrator();
+        }
+
+        if(rpm > 8000) {
+            reset_integrator();
+            throttle_servo = 1012;
         }
 
         if(throttle_servo < 1012) throttle_servo = 1012;
         else if(throttle_servo > 1930) throttle_servo = 1930;
 
-        if(rpm > 6000 && !running) {
+        if(rpm > 5500 && !running) {
             tmp++;
         }
         else
@@ -110,6 +157,15 @@ int main(void) {
 
         if(tmp > 100)
             running = true;
+
+        if(rpm == 0 && running) {
+            run_timeout++;
+        } else {
+            run_timeout = 0;
+        }
+        if(run_timeout > 50) {
+            running = false;
+        }
 
         set_servo_pwm(throttle_servo);
 

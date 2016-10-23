@@ -84,7 +84,7 @@
  * PA3  - Push Pull output           (AUX2).
  * PA4  - Alternate Open Drain output(CURR_DAC).
  * PA5  - Alternate Push Pull output (SCK_1).
- * PA6  - Digital input              (MISO_1).
+ * PA6  - Analog                     (VOLTAGE).
  * PA7  - Alternate Push Pull output (MOSI_1).
  * PA8  - Digital input              (EN_A).
  * PA9  - Digital input              (EN_B).
@@ -92,9 +92,9 @@
  * PA11 - Digital input with PullUp  (CAN_RX).
  * PA12 - Alternate Push Pull output (CAN_TX).
  */
-#define VAL_GPIOACRL            0x84BF1181      /*  PA7...PA0 */
+#define VAL_GPIOACRL            0x80BF1181      /*  PA7...PA0 */
 #define VAL_GPIOACRH            0x888B8488      /* PA15...PA8 */
-#define VAL_GPIOAODR            0xFFFFFFFF
+#define VAL_GPIOAODR            0xFFFFFCFF
 
 /*
  * Port B setup.
