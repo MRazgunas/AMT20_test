@@ -10,9 +10,9 @@ static float d_term = 0.0f;
 
 float apply_rpm_pid(uint16_t target_rpm, uint16_t rpm) {
 
-    float Kp_rpm = rpm_pid_p;
-    float Ki_rpm = rpm_pid_i;
-    float Kd_rpm = rpm_pid_d;
+    float Kp_rpm = rpm_pid_p / 1000;
+    float Ki_rpm = rpm_pid_i / 1000;
+    float Kd_rpm = rpm_pid_d / 1000;
 
     //static uint32_t last_time = 0;
     // uint32_t now = ST2MS(chVTGetSystemTime());

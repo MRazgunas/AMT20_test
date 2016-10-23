@@ -11,6 +11,7 @@ static bool init = false;
 
 icucnt_t last_width_rpm, last_period_rpm;
 uint16_t last_rpm = 0;
+uint16_t lpf_rpm = 0;
 
 static virtual_timer_t rpm_timeout;
 
@@ -27,9 +28,8 @@ static void icuwidthcb(ICUDriver *icup) {
 
 static void icuperiodcb(ICUDriver *icup) {
     last_period_rpm = icuGetPeriodX(icup);
-    uint16_t rpm = (60 * ICU_FREQUENCY) / last_period_rpm;
-    //Low pass filter rpm
-    last_rpm = last_rpm - (rpm_lpf_beta * (last_rpm - rpm));
+
+    last_rpm = (60 * ICU_FREQUENCY) / last_period_rpm;
 
 
     /* Set timeout virtual timer if we don't get more callback
@@ -40,7 +40,7 @@ static void icuperiodcb(ICUDriver *icup) {
 }
 
 static ICUConfig icucfg = {
-  ICU_INPUT_ACTIVE_HIGH,
+  ICU_INPUT_ACTIVE_LOW,
   ICU_FREQUENCY,           /* 100kHz ICU clock frequency.   */
   icuwidthcb,
   icuperiodcb,
@@ -60,10 +60,15 @@ void init_rpm(void) {
     init = true;
 }
 
+void apply_filter(void) {
+    //Low pass filter rpm
+    lpf_rpm = lpf_rpm - (rpm_lpf_beta * (lpf_rpm - last_rpm));
+}
+
 uint16_t get_rpm(void) {
     if(!init)
         return 0;
-    return last_rpm;
+    return lpf_rpm;
 }
 
 
