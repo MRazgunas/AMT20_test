@@ -263,6 +263,7 @@ bool save_parameter(const void * ptr, bool force_save) {
         // found an existing copy of the variable
         eeprom_write_check(info->ptr, ofs+sizeof(phdr), type_size((ap_var_type)phdr.type));
         send_parameter(info, info->name, info->type);
+        return true;
     }
 
     if(ofs == (uint16_t)~0) {
