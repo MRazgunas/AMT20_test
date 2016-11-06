@@ -53,9 +53,28 @@ bool write_block(uint16_t addr, const void *data, size_t n) {
             return false;
         wait_for_write_end();
 
-    } else { //crossing page boundary
-        //Not supported for now
-        chSysHalt("EEPROM boundry");
+    } else { //crossing page boundary max data supported is EEPROM_PAGE_SIZE
+        data_size = EEPROM_PAGE_SIZE - offset;
+        send_buff[0] = addr >> 8;
+        send_buff[1] = addr & 0xFF;
+        memcpy(&send_buff[2], b, data_size);
+        res = i2cMasterTransmitTimeout(&EEPROM_BUS, EEPROM_ADDRESS, send_buff, data_size+2, NULL, 0, MS2ST(10));
+        if(res != MSG_OK)
+            return false;
+        wait_for_write_end();
+
+        addr += data_size;
+        data_size = n - data_size;
+        send_buff[0] = addr >> 8;
+        send_buff[1] = addr & 0xFF;
+        memcpy(&send_buff[2], b, data_size);
+        res = i2cMasterTransmitTimeout(&EEPROM_BUS, EEPROM_ADDRESS, send_buff, data_size+2, NULL, 0, MS2ST(10));
+        if(res != MSG_OK)
+            return false;
+        wait_for_write_end();
+
+
+       // chSysHalt("EEPROM boundry");
         return false;
     }
     return true;
