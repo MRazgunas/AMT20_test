@@ -123,12 +123,13 @@ int main(void) {
         rpm = get_rpm();
         voltage = measure_voltage();
 
+        uint16_t target_rrpm = apply_voltage_pid(target_voltage, voltage);
+
         //PWM -> RPM
         target_rpm = 6.5359*width - 4614.4;
         if(target_rpm < 2000) target_rpm = 2000;
         else if(target_rpm > 8000) target_rpm = 8000;
 
-        uint16_t target_rrpm = apply_voltage_pid(40.0f, voltage);
         thr = apply_rpm_pid(target_rpm, rpm);
 
         if(thr > 0.4f) thr = 0.4f;
