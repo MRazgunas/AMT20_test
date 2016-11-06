@@ -15,6 +15,7 @@ float rpm_pid_d;
 float rpm_lpf_beta;
 int16_t stream_rates[NUM_STREAMS];
 int16_t volt_pid_p, volt_pid_i, volt_pid_d;
+float target_voltage;
 
 const struct Info var_info[] = {
         // @Param: FORMAT_VERSION
@@ -88,6 +89,12 @@ const struct Info var_info[] = {
         // @Description: This value is const of lpf filter for RPM
         // @User: Advanced
         GSCALAR(AP_PARAM_INT16, volt_pid_d, "VOLT_PID_D", 0),
+
+        // @Param: VOLT_PID_D
+        // @DisplayName: This is tragte voltage to hold
+        // @Description: This value sets target voltage that VOLTAGE PID uses
+        // @User: Advanced
+        GSCALAR(AP_PARAM_FLOAT, target_voltage, "VOLT_TARGET", 30.0f),
 
         AP_VAREND,
 };
