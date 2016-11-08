@@ -27,7 +27,7 @@ uint16_t apply_voltage_pid(float target_voltage, float voltage) {
     volt_p_term = Kp_volt * err;
 
     //Don't change integral if output is saturated
-    if(rpm_out < 3000  && rpm_out > 8000)
+    if(rpm_out > 3000  && rpm_out < 8000)
         i_temp_volt += (err);
     //Calculate I term
     volt_i_term = Ki_volt * i_temp_volt;
