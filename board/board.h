@@ -44,6 +44,7 @@
 #define GPIOC_LED1	            0
 #define GPIOC_LED2		        1
 #define GPIOC_THROTTLE_SERVO    5
+#define GPIOA_RPM               8
 
 #define EEPROM_ADDRESS  0x50
 #define EEPROM_SIZE     4096 //bytes
@@ -86,7 +87,7 @@
  * PA5  - Alternate Push Pull output (SCK_1).
  * PA6  - Analog                     (VOLTAGE).
  * PA7  - Alternate Push Pull output (MOSI_1).
- * PA8  - Digital input              (EN_A).
+ * PA8  - Digital input              (RPM).
  * PA9  - Digital input              (EN_B).
  * PA10 - Digital input              (EN_SW).
  * PA11 - Digital input with PullUp  (CAN_RX).
