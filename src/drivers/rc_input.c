@@ -3,8 +3,8 @@
 
 #include "rc_input.h"
 
-#define RC_MAX 2400
-#define RC_MIN 800
+#define RC_MAX 1930
+#define RC_MIN 1012
 
 static virtual_timer_t rc_timeout;
 
@@ -22,7 +22,7 @@ static void rc_timeout_cb(void *arg) {
 static void icuwidthcb(ICUDriver *icup) {
     uint16_t width = icuGetWidthX(icup);
 
-    if(width < RC_MAX || last_width > RC_MIN)
+    if(width < RC_MAX && width > RC_MIN)
         last_width = width;
 
     /* Set timeout virtual timer if we don't get more callback
