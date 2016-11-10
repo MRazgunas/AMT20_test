@@ -79,12 +79,18 @@ float measure_voltage(void) {
     return voltage;
 }
 
+void apply_voltage_filter(float voltage_raw) {
+    //Low pass filter rpm
+    voltage = voltage - (volt_lpf_beta * (voltage - voltage_raw));
+}
+
 int main(void) {
     halInit();
     chSysInit();
 
     uint16_t width = 0;
     uint16_t rpm = 0;
+
 
     /*
      * Activates the serial driver 1 using the driver default configuration.
@@ -112,60 +118,65 @@ int main(void) {
     init_rpm();
     init_telemetry();
 
-    bool running = false;
-    float thr;
-    uint16_t tmp = 0;
+    bool over = false;
+    float thr = 0.0f;
     uint16_t run_timeout = 0;
+    uint16_t over_rpm = 0;
 
     while (TRUE) {
         width = get_rc_input();
         apply_filter();
         rpm = get_rpm();
-        voltage = measure_voltage();
+        apply_voltage_filter(measure_voltage()); //This sets voltage
 
-        uint16_t target_rrpm = apply_voltage_pid(target_voltage, voltage);
+        target_rrpm = apply_voltage_pid(target_voltage, voltage, thr);
 
         //PWM -> RPM
-        target_rpm = 6.5359*width - 4614.4;
+       /* target_rpm = 6.5359*width - 4614.4;
         if(target_rpm < 2000) target_rpm = 2000;
-        else if(target_rpm > 8000) target_rpm = 8000;
+        else if(target_rpm > 8000) target_rpm = 8000; */
 
-        thr = apply_rpm_pid(target_rpm, rpm);
+        thr = apply_rpm_pid(target_rrpm, rpm);
 
-        if(thr > 0.4f) thr = 0.4f;
+        if(thr > 1.0f) thr = 1.0f;
 
         //Servo min range 1012 max 1930
         throttle_servo = 918 * thr + 1012;
 
-        if(!running) {
+        if(!engine_control) {
             throttle_servo = width;
             reset_integrator();
+            reset_volt_integrator();
         }
 
         if(rpm > 8000) {
+            over_rpm++;
+        }
+        else over_rpm = 0;
+
+        if(over_rpm > 5) {
             reset_integrator();
+            reset_volt_integrator();
             throttle_servo = 1012;
+        }
+
+        if(over_rpm > 10) {
+            //Emergency engine shutdown
         }
 
         if(throttle_servo < 1012) throttle_servo = 1012;
         else if(throttle_servo > 1930) throttle_servo = 1930;
 
-        if(rpm > 5500 && !running) {
-            tmp++;
-        }
-        else
-            tmp = 0;
 
-        if(tmp > 100)
-            running = true;
-
-        if(rpm == 0 && running) {
+        if(rpm == 0 && engine_control) {
             run_timeout++;
         } else {
             run_timeout = 0;
         }
-        if(run_timeout > 50) {
-            running = false;
+        if(run_timeout > 10) {
+            engine_control = false;
+            //Emergency shutdown engine means that it stopped or sensor is broken
+            //Try to spin and check for RPM response
         }
 
         set_servo_pwm(throttle_servo);
