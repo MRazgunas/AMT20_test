@@ -11,6 +11,8 @@
 #include "parameters_d.h"
 #include "rc_input.h"
 #include "rpm.h"
+#include "pid_rpm.h"
+#include "voltage_pid.h"
 
 #define SERIAL_DEVICE SD1
 
@@ -23,7 +25,11 @@ uint16_t _queued_parameter_count;
 float voltage;
 
 uint16_t target_rpm;
+uint16_t target_rrpm;
 uint16_t throttle_servo;
+
+/* If true board has full control over engine, otherwise just pass-through */
+bool engine_control = false;
 
 // number of 50Hz ticks until we next send this stream
 uint8_t stream_ticks[NUM_STREAMS];
@@ -92,7 +98,7 @@ static THD_FUNCTION(MavlinkTx, arg) {
     uint8_t system_type = MAV_TYPE_GIMBAL;
     uint8_t autopilot_type = MAV_AUTOPILOT_ARDUPILOTMEGA;
 
-    uint8_t system_mode = MAV_MODE_AUTO_ARMED; ///< Booting up
+    uint8_t system_mode = MAV_MODE_AUTO_DISARMED; ///< Booting up
     uint32_t custom_mode = 0;   ///< Custom mode, can be defined by user/adopter
     uint8_t system_state = MAV_STATE_ACTIVE; ///< System ready for flight
 
@@ -100,9 +106,10 @@ static THD_FUNCTION(MavlinkTx, arg) {
 	while(true) {
 	    systime_t now = ST2MS(chVTGetSystemTime());
 	    if(abs(now - last_1hz) > 1000) {
+	        if(engine_control) system_mode = MAV_MODE_AUTO_ARMED;
+	        else system_mode = MAV_MODE_AUTO_DISARMED;
 	        mavlink_msg_heartbeat_send(MAVLINK_COMM_0, system_type, autopilot_type, system_mode, custom_mode, system_state);
 	        last_1hz = now;
-	        blink();
 	    }
 	    data_stream_send();
         chThdSleepMilliseconds(20);
@@ -137,6 +144,19 @@ void handle_mavlink_message(mavlink_message_t msg) {
 		    mavlink_data_stream_t decode;
 		    mavlink_msg_data_stream_decode(&msg, &decode);
 		    break;
+		}
+		case MAVLINK_MSG_ID_COMMAND_LONG: {
+            mavlink_command_long_t pack;
+            mavlink_msg_command_long_decode(&msg, &pack);
+            switch (pack.command) {
+                case MAV_CMD_COMPONENT_ARM_DISARM : {
+                    if(pack.param1 == 1.0f) engine_control = true;
+                    else engine_control = false;
+                    break;
+                }
+            }
+            mavlink_msg_command_ack_send(MAVLINK_COMM_0, pack.command,
+                                   MAV_RESULT_ACCEPTED);
 		}
 	}
 }
@@ -251,13 +271,18 @@ void data_stream_send(void) {
     }
 
     if (stream_trigger(STREAM_RAW_SENSORS)) {
-        mavlink_msg_rpm_send(MAVLINK_COMM_0, (float)get_rpm(), (float)target_rpm);
+        mavlink_msg_rpm_send(MAVLINK_COMM_0, (float)get_rpm(), (float)target_rrpm);
         uint16_t volt_mil = voltage * 1000;
         mavlink_msg_sys_status_send(MAVLINK_COMM_0, 0, 0, 0, 0, volt_mil, 0, 0, 0,
                 0, 0, 0, 0, 0);
     }
 
     if (stream_trigger(STREAM_RAW_CONTROLLER)) {
+        /*mavlink_msg_pid_tuning_send(MAVLINK_COMM_0, PID_TUNING_ROLL, (float)target_rpm,
+                (float)get_rpm(), 0.0f, p_term, i_term, d_term); */
+        mavlink_msg_pid_tuning_send(MAVLINK_COMM_0, PID_TUNING_ROLL, (float)target_voltage,
+                        voltage, 0.0f, volt_p_term, volt_i_term, volt_d_term);
+
 
     }
 
