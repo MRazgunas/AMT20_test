@@ -1,45 +1,62 @@
 #include "ch.h"
 #include "hal.h"
+#include "stdlib.h"
 
 #include "voltage_pid.h"
 #include "parameters_d.h"
 
-static float volt_p_term, volt_i_term, volt_d_term;
+float volt_p_term = 0.0f;
+float volt_i_term = 0.0f;
+float volt_d_term = 0.0f;
 static uint16_t rpm_out = 0;
 static float i_temp_volt = 0.0f;
 static float d_temp_volt = 0.0f;
+static systime_t last_ex = 0;
+
+void reset_volt_integrator(void) {
+    i_temp_volt = 0.0f;
+}
 
 
-uint16_t apply_voltage_pid(float target_voltage, float voltage) {
+uint16_t apply_voltage_pid(float target_voltage, float voltage, float thr) {
 
-    float Kp_volt = volt_pid_p;
-    float Ki_volt = volt_pid_i;
-    float Kd_volt = volt_pid_d;
+    float dt = ST2US(abs(chVTGetSystemTime() - last_ex))/ 1000000.0f;
+    last_ex = chVTGetSystemTime();
 
-    //static uint32_t last_time = 0;
-    // uint32_t now = ST2MS(chVTGetSystemTime());
-    // uint32_t dt = now - last_time;
-    // last_time = now;
+    static float Kp_volt = 0.0f;
+    static float Ki_volt = 0.0f;
+    static float Kd_volt = 0.0f;
+
+    if(volt_pid_i != Ki_volt) {
+        reset_volt_integrator();
+    }
+
+    Kp_volt = volt_pid_p;
+    Ki_volt = volt_pid_i;
+    Kd_volt = volt_pid_d;
 
     float err = target_voltage - voltage;
 
     //Calculate P term
     volt_p_term = Kp_volt * err;
 
-    //Don't change integral if output is saturated
-    if(rpm_out > 3000  && rpm_out < 8000)
+    //Don't change integral if output or throttle is saturated
+    if((rpm_out > 2000  && rpm_out < 8000) && (thr > 0.0f && thr < 1.0f))
         i_temp_volt += (err);
     //Calculate I term
-    volt_i_term = Ki_volt * i_temp_volt;
+    volt_i_term = Ki_volt * i_temp_volt * dt;
 
-    volt_d_term = Kd_volt * (err - d_temp_volt);
+    volt_d_term = Kd_volt * (err - d_temp_volt) / dt;
     d_temp_volt = err;
 
-    rpm_out = volt_p_term + volt_i_term + volt_d_term;
+    rpm_out = 2000.0f + volt_p_term + volt_i_term + volt_d_term; //Offset by 2000RPM
     if(rpm_out > 8000)
         rpm_out = 8000;
-    else if(rpm_out < 3000)
-        rpm_out = 3000;
+    else if(rpm_out < 2000)
+        rpm_out = 2000;
+
+    if(voltage < 4.0f)
+        rpm_out = 2000;
 
     return rpm_out;
 }
