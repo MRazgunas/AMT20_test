@@ -4,15 +4,15 @@
 static float thr_out = 0.0f;
 static float i_temp = 0.0f;
 static float d_temp = 0.0f;
-static float p_term = 0.0f;
-static float i_term = 0.0f;
-static float d_term = 0.0f;
+float p_term = 0.0f;
+float i_term = 0.0f;
+float d_term = 0.0f;
 
 float apply_rpm_pid(uint16_t target_rpm, uint16_t rpm) {
 
-    float Kp_rpm = rpm_pid_p / 1000;
-    float Ki_rpm = rpm_pid_i / 1000;
-    float Kd_rpm = rpm_pid_d / 1000;
+    float Kp_rpm = rpm_pid_p / 1000.0f;
+    float Ki_rpm = rpm_pid_i / 1000.0f;
+    float Kd_rpm = rpm_pid_d / 1000.0f;
 
     //static uint32_t last_time = 0;
     // uint32_t now = ST2MS(chVTGetSystemTime());

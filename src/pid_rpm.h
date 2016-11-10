@@ -7,4 +7,8 @@
 void reset_integrator(void);
 float apply_rpm_pid(uint16_t target_rpm, uint16_t rpm);
 
+extern float p_term;
+extern float i_term;
+extern float d_term;
+
 #endif /* SRC_PID_RPM_H_ */
