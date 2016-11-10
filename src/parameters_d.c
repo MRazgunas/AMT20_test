@@ -14,8 +14,9 @@ float rpm_pid_i;
 float rpm_pid_d;
 float rpm_lpf_beta;
 int16_t stream_rates[NUM_STREAMS];
-int16_t volt_pid_p, volt_pid_i, volt_pid_d;
+float volt_pid_p, volt_pid_i, volt_pid_d;
 float target_voltage;
+float volt_lpf_beta;
 
 const struct Info var_info[] = {
         // @Param: FORMAT_VERSION
@@ -76,25 +77,31 @@ const struct Info var_info[] = {
         // @DisplayName: RPM LPF filter beta
         // @Description: This value is const of lpf filter for RPM
         // @User: Advanced
-        GSCALAR(AP_PARAM_INT16, volt_pid_p, "VOLT_PID_P", 5),
+        GSCALAR(AP_PARAM_FLOAT, volt_pid_p, "VOLT_PID_P", 5),
 
         // @Param: VOLT_PID_I
         // @DisplayName: RPM LPF filter beta
         // @Description: This value is const of lpf filter for RPM
         // @User: Advanced
-        GSCALAR(AP_PARAM_INT16, volt_pid_i, "VOLT_PID_I", 5),
+        GSCALAR(AP_PARAM_FLOAT, volt_pid_i, "VOLT_PID_I", 5),
 
         // @Param: VOLT_PID_D
         // @DisplayName: RPM LPF filter beta
         // @Description: This value is const of lpf filter for RPM
         // @User: Advanced
-        GSCALAR(AP_PARAM_INT16, volt_pid_d, "VOLT_PID_D", 0),
+        GSCALAR(AP_PARAM_FLOAT, volt_pid_d, "VOLT_PID_D", 0),
 
         // @Param: VOLT_PID_D
-        // @DisplayName: This is tragte voltage to hold
+        // @DisplayName: This is target voltage to hold
         // @Description: This value sets target voltage that VOLTAGE PID uses
         // @User: Advanced
         GSCALAR(AP_PARAM_FLOAT, target_voltage, "VOLT_TARGET", 30.0f),
+
+        // @Param: VOLT_LPF_BETA
+        // @DisplayName: Voltage LPF filter beta
+        // @Description: This value is const of lpf filter for voltage
+        // @User: Advanced
+        GSCALAR(AP_PARAM_FLOAT, volt_lpf_beta, "VOLT_LPF_BETA", 0.4f),
 
         AP_VAREND,
 };

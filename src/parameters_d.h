@@ -29,6 +29,7 @@ enum {
     k_param_volt_pid_i,
     k_param_volt_pid_d,
     k_param_target_voltage,
+    k_param_volt_lpf_beta,
 };
 
 
@@ -38,8 +39,9 @@ extern float rpm_pid_i;
 extern float rpm_pid_d;
 extern float rpm_lpf_beta;
 extern int16_t stream_rates[NUM_STREAMS];
-extern int16_t volt_pid_p, volt_pid_i, volt_pid_d;
+extern float volt_pid_p, volt_pid_i, volt_pid_d;
 extern float target_voltage;
+extern float volt_lpf_beta;
 
 void load_parameters(void);
 
