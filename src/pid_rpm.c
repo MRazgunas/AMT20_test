@@ -1,5 +1,6 @@
 #include "pid_rpm.h"
 #include "parameters_d.h"
+#include "stdlib.h"
 
 static float thr_out = 0.0f;
 static float i_temp = 0.0f;
@@ -27,8 +28,8 @@ float apply_rpm_pid(uint16_t target_rpm, uint16_t rpm) {
     //Calculate P term
     p_term = Kp_rpm * err;
 
-    //Don't change integral if output is saturated
-    if(thr_out < 1.0f && thr_out > 0.0f)
+    //Don't change integral if output is saturated. 200RPM deadband
+    if(thr_out < 1.0f && thr_out > 0.0f && (err > 0.04f || err < -0.04f))
         i_temp += (err);
     //Calculate I term
     i_term = Ki_rpm * i_temp;

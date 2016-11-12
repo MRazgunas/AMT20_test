@@ -41,8 +41,10 @@ uint16_t apply_voltage_pid(float target_voltage, float voltage, float thr) {
     volt_p_term = Kp_volt * err;
 
     //Don't change integral if output or throttle is saturated
-    if((rpm_out > 2000  && rpm_out < 8000) && (thr > 0.0f && thr < 1.0f))
+    if((rpm_out > 2000  && rpm_out < 8000) && thr < 0.999f &&
+            (err > 0.4f || err < -0.4f)) {
         i_temp_volt += (err);
+    }
     //Calculate I term
     volt_i_term = Ki_volt * i_temp_volt * dt;
 
