@@ -106,11 +106,12 @@ int main(void) {
     chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO + 1, Thread1,
     NULL);
 
-    load_parameters();
-
     //Dump first page of eeprom
-    uint8_t buff[EEPROM_PAGE_SIZE];
-    read_block(buff, 0x0, EEPROM_PAGE_SIZE);
+//    uint8_t buff[EEPROM_PAGE_SIZE*3];
+//    read_block(buff, 0x0, EEPROM_PAGE_SIZE*3);
+
+
+    load_parameters();
 
 
     init_servo();
