@@ -278,10 +278,13 @@ void data_stream_send(void) {
     }
 
     if (stream_trigger(STREAM_RAW_CONTROLLER)) {
-        /*mavlink_msg_pid_tuning_send(MAVLINK_COMM_0, PID_TUNING_ROLL, (float)target_rpm,
-                (float)get_rpm(), 0.0f, p_term, i_term, d_term); */
-        mavlink_msg_pid_tuning_send(MAVLINK_COMM_0, PID_TUNING_ROLL, (float)target_voltage,
-                        voltage, 0.0f, volt_p_term, volt_i_term, volt_d_term);
+        if(pid_report == 1) {
+        mavlink_msg_pid_tuning_send(MAVLINK_COMM_0, PID_TUNING_ROLL, (float)target_rrpm,
+                    (float)get_rpm(), 0.0f, p_term, i_term, d_term);
+        } else if(pid_report == 0) {
+            mavlink_msg_pid_tuning_send(MAVLINK_COMM_0, PID_TUNING_ROLL, (float)target_voltage,
+                    voltage, 0.0f, volt_p_term, volt_i_term, volt_d_term);
+        }
 
 
     }

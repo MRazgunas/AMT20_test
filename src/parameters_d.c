@@ -17,6 +17,8 @@ int16_t stream_rates[NUM_STREAMS];
 float volt_pid_p, volt_pid_i, volt_pid_d;
 float target_voltage;
 float volt_lpf_beta;
+int16_t pid_report;
+
 
 const struct Info var_info[] = {
         // @Param: FORMAT_VERSION
@@ -102,6 +104,13 @@ const struct Info var_info[] = {
         // @Description: This value is const of lpf filter for voltage
         // @User: Advanced
         GSCALAR(AP_PARAM_FLOAT, volt_lpf_beta, "VOLT_LPF_BETA", 0.4f),
+
+        // @Param: PID_REPORT
+        // @DisplayName: Which PID controller is reported to GCS
+        // @Description: 1 - RPM, 0 - Voltage
+        // @User: Advanced
+        GSCALAR(AP_PARAM_INT16, pid_report, "PID_REPORT", 0),
+
 
         AP_VAREND,
 };
