@@ -31,6 +31,7 @@ enum {
     k_param_target_voltage,
     k_param_volt_lpf_beta,
     k_param_pid_report,
+    k_param_max_man_thr,
 };
 
 
@@ -44,6 +45,7 @@ extern float volt_pid_p, volt_pid_i, volt_pid_d;
 extern float target_voltage;
 extern float volt_lpf_beta;
 extern int16_t pid_report;
+extern float max_man_thr;
 
 void load_parameters(void);
 

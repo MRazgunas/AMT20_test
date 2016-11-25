@@ -18,6 +18,7 @@ float volt_pid_p, volt_pid_i, volt_pid_d;
 float target_voltage;
 float volt_lpf_beta;
 int16_t pid_report;
+float max_man_thr;
 
 
 const struct Info var_info[] = {
@@ -110,6 +111,12 @@ const struct Info var_info[] = {
         // @Description: 1 - RPM, 0 - Voltage
         // @User: Advanced
         GSCALAR(AP_PARAM_INT16, pid_report, "PID_REPORT", 0),
+
+        // @Param: MAX_MAN_THR
+        // @DisplayName: Max manual throttle when in manual mode (%)
+        // @Description: Max throttle (0.0-1.0)
+        // @User: Advanced
+        GSCALAR(AP_PARAM_FLOAT, max_man_thr, "MAX_MAN_THR", 0.05f),
 
 
         AP_VAREND,

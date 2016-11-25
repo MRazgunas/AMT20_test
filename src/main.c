@@ -119,7 +119,6 @@ int main(void) {
     init_rpm();
     init_telemetry();
 
-    bool over = false;
     float thr = 0.0f;
     uint16_t run_timeout = 0;
     uint16_t over_rpm = 0;
@@ -145,7 +144,11 @@ int main(void) {
         throttle_servo = 918 * thr + 1012;
 
         if(!engine_control) {
-            throttle_servo = width;
+            float rc_thr = (width - 1012)/918.0f;
+            if(rc_thr > 1.0f) rc_thr = 1.0f;
+            else if(rc_thr < 0.0f) rc_thr = 0.0f;
+
+            throttle_servo = 918 * rc_thr * max_man_thr + 1012;
             reset_integrator();
             reset_volt_integrator();
         }
