@@ -26,6 +26,7 @@
 #include "parameters_d.h"
 #include "pid_rpm.h"
 #include "voltage_pid.h"
+#include "dps6015a.h"
 
 /*
  * Blinker thread #1.
