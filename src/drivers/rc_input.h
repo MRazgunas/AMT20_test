@@ -3,8 +3,8 @@
 
 void init_rc_input(void);
 
-uint16_t get_rc_input(void);
-
+float get_norm_rc_input(void);
+uint16_t get_rc_pwm(void);
 
 
 

@@ -20,6 +20,16 @@ float volt_lpf_beta;
 int16_t pid_report;
 float max_man_thr;
 
+//RC input
+int16_t rc1_min;
+int16_t rc1_max;
+int16_t rc1_rev;
+
+//thr output
+int16_t thr_min;
+int16_t thr_max;
+int16_t  thr_rev;
+
 
 const struct Info var_info[] = {
         // @Param: FORMAT_VERSION
@@ -118,6 +128,41 @@ const struct Info var_info[] = {
         // @User: Advanced
         GSCALAR(AP_PARAM_FLOAT, max_man_thr, "MAX_MAN_THR", 0.05f),
 
+        // @Param: RC1_MIN
+        // @DisplayName: RC1 min PWM
+        // @Description: Minimum RC1 PWM input
+        // @User: Advanced
+        GSCALAR(AP_PARAM_INT16, rc1_min, "RC1_MIN", 1100),
+
+        // @Param: RC1_MAX
+        // @DisplayName: RC1 max PWM
+        // @Description: Maximum RC1 PWM input
+        // @User: Advanced
+        GSCALAR(AP_PARAM_INT16, rc1_max, "RC1_MAX", 1900),
+
+        // @Param: RC1_REV
+        // @DisplayName: RC1 reverse
+        // @Description: Reverse channel 1-normal -1 reverse
+        // @User: Advanced
+        GSCALAR(AP_PARAM_INT16, rc1_rev, "RC1_REV", 1),
+
+        // @Param: THR_MIN
+        // @DisplayName: THR min PWM
+        // @Description: Minimum THR PWM output
+        // @User: Advanced
+        GSCALAR(AP_PARAM_INT16, thr_min, "THR_MIN", 1100),
+
+        // @Param: THR_MAX
+        // @DisplayName: THR max PWM
+        // @Description: Maximum THR PWM output
+        // @User: Advanced
+        GSCALAR(AP_PARAM_INT16, thr_max, "THR_MAX", 1900),
+
+        // @Param: THR_REV
+        // @DisplayName: THR reverse
+        // @Description: Reverse channel 1-normal -1 reverse
+        // @User: Advanced
+        GSCALAR(AP_PARAM_INT16, thr_rev, "THR_REV", 1),
 
         AP_VAREND,
 };

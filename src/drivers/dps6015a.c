@@ -4,7 +4,7 @@
 #include "hal.h"
 #include "chprintf.h"
 
-#define PSU_PORT SD2
+#define PSU_PORT SD3
 
 bool turn_on_output(uint8_t address) {
     if(address < 1 || address > 99) {

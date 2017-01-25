@@ -107,15 +107,15 @@
  * PB7  - Digital input              (UART_RX_1).
  * PB8  - Alternate Open Drain output(SCL_1).
  * PB9  - Alternate Open Drain output(SDA_1).
- * PB10 - Push Pull output           (AUX4).
- * PB11 - Push Pull output           (T_CS).
+ * PB10 - Alternate Push Pull output (UART3_TX).
+ * PB11 - Digital input with PullUp  (UART3_RX).
  * PB12 - Push Pull output           (SC_CS).
  * PB13 - Alternate Push Pull output (SCK_2).
  * PB14 - Digital input with Push    (MISO_2).
  * PB15 - Alternate Push Pull output (MOSI_2).
  */
 #define VAL_GPIOBCRL            0x4B88811A      /*  PB7...PB0 */
-#define VAL_GPIOBCRH            0xB8B331FF      /* PB15...PB8 */
+#define VAL_GPIOBCRH            0xB8B38BFF      /* PB15...PB8 */
 #define VAL_GPIOBODR            0xFFFFFFFF
 
 /*

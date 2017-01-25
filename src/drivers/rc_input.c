@@ -2,9 +2,10 @@
 #include "hal.h"
 
 #include "rc_input.h"
+#include "parameters_d.h"
 
-#define RC_MAX 1930
-#define RC_MIN 1012
+#define RC_MAX 2200
+#define RC_MIN 900
 
 static virtual_timer_t rc_timeout;
 
@@ -26,7 +27,7 @@ static void icuwidthcb(ICUDriver *icup) {
         last_width = width;
 
     /* Set timeout virtual timer if we don't get more callback
-    * int given time it will set rpm to 0*/
+    * int given time it will set rc to 0*/
     chSysLockFromISR();
     chVTSetI(&rc_timeout, MS2ST(200), rc_timeout_cb, NULL);
     chSysUnlockFromISR();
@@ -59,9 +60,25 @@ void init_rc_input(void) {
 
 }
 
-uint16_t get_rc_input(void) {
+float get_norm_rc_input(void) {
     if(!init)
-        return 0;
+        return 0.0f;
+
+    float ret = ((float)last_width - rc1_min) / (float)(rc1_max - rc1_min);
+    if (rc1_rev == -1) {
+        ret = 1.0f - ret;
+    }
+
+    if(ret > 1.0f) ret = 1.0f;
+    else if (ret < 0.0f) ret = 0.0f;
+
+    return ret;
+}
+
+uint16_t get_rc_pwm(void) {
+    if(!init)
+        return 0.0f;
+
     return last_width;
 }
 

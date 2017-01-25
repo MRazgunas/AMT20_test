@@ -13,6 +13,7 @@
 #include "rpm.h"
 #include "pid_rpm.h"
 #include "voltage_pid.h"
+#include "servo.h"
 
 #define SERIAL_DEVICE SD1
 
@@ -26,10 +27,13 @@ float voltage;
 
 uint16_t target_rpm;
 uint16_t target_rrpm;
-uint16_t throttle_servo;
 
 /* If true board has full control over engine, otherwise just pass-through */
 bool engine_control = false;
+
+
+/* Engine state */
+uint8_t engine_state = ENGINE_STOPED;
 
 // number of 50Hz ticks until we next send this stream
 uint8_t stream_ticks[NUM_STREAMS];
@@ -108,7 +112,9 @@ static THD_FUNCTION(MavlinkTx, arg) {
 	    if(abs(now - last_1hz) > 1000) {
 	        if(engine_control) system_mode = MAV_MODE_AUTO_ARMED;
 	        else system_mode = MAV_MODE_AUTO_DISARMED;
-	        mavlink_msg_heartbeat_send(MAVLINK_COMM_0, system_type, autopilot_type, system_mode, custom_mode, system_state);
+	        if(engine_state == ENGINE_EMERGENCY_SHUTDOWN) system_state = MAV_STATE_EMERGENCY;
+
+	        mavlink_msg_heartbeat_send(MAVLINK_COMM_0, system_type, autopilot_type, system_mode, engine_state, system_state);
 	        last_1hz = now;
 	    }
 	    data_stream_send();
@@ -291,9 +297,9 @@ void data_stream_send(void) {
 
     if (stream_trigger(STREAM_RC_CHANNELS)) {
         mavlink_msg_rc_channels_raw_send(MAVLINK_COMM_0, ST2MS(chVTGetSystemTime()),
-                0, get_rc_input(), 0, 0, 0, 0, 0, 0, 0, 0);
+                0, get_rc_pwm(), 0, 0, 0, 0, 0, 0, 0, 0);
         mavlink_msg_servo_output_raw_send(MAVLINK_COMM_0, ST2MS(chVTGetSystemTime()),
-                0, throttle_servo, 0, 0, 0, 0, 0, 0, 0);
+                0, get_thr_pwm(), 0, 0, 0, 0, 0, 0, 0);
     }
 }
 

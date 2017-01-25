@@ -41,6 +41,10 @@ bool write_block(uint16_t addr, const void *data, size_t n) {
     size_t data_size = n;
     msg_t res;
 
+    if(addr+n > EEPROM_SIZE) {
+        chSysHalt("EEPROM full");
+    }
+
     if(data_size > EEPROM_PAGE_SIZE || n == 0) {
         return false; //can't write more than one page at time or write 0 data
     }

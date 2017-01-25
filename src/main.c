@@ -89,15 +89,13 @@ int main(void) {
     halInit();
     chSysInit();
 
-    uint16_t width = 0;
-    uint16_t rpm = 0;
-
-
     /*
      * Activates the serial driver 1 using the driver default configuration.
      * PA9(TX) and PA10(RX) are routed to USART1.
      */
     sdStart(&SD1, NULL);
+    sdStart(&SD3, NULL);
+
     adcStart(&ADCD1, NULL);
     init_eeprom();
 
@@ -120,72 +118,98 @@ int main(void) {
     init_rpm();
     init_telemetry();
 
+
+    float rc_in = 0;
+    uint16_t rpm = 0;
     float thr = 0.0f;
     uint16_t run_timeout = 0;
     uint16_t over_rpm = 0;
 
+   /* chThdSleepMilliseconds(2000);
+    turn_on_output(1); */
+
+    systime_t last_ex_time;
+
     while (TRUE) {
-        width = get_rc_input();
+        last_ex_time = chVTGetSystemTime();
+        rc_in = get_norm_rc_input();
+
         apply_filter();
         rpm = get_rpm();
         apply_voltage_filter(measure_voltage()); //This sets voltage
-
-        target_rrpm = apply_voltage_pid(target_voltage, voltage, thr);
 
         //PWM -> RPM
        /* target_rpm = 6.5359*width - 4614.4;
         if(target_rpm < 2000) target_rpm = 2000;
         else if(target_rpm > 8000) target_rpm = 8000; */
 
-        thr = apply_rpm_pid(target_rrpm, rpm);
-
-        if(thr > 1.0f) thr = 1.0f;
-
-        //Servo min range 1012 max 1930
-        throttle_servo = 918 * thr + 1012;
-
-        if(!engine_control) {
-            float rc_thr = (width - 1012)/918.0f;
-            if(rc_thr > 1.0f) rc_thr = 1.0f;
-            else if(rc_thr < 0.0f) rc_thr = 0.0f;
-
-            throttle_servo = 918 * rc_thr * max_man_thr + 1012;
-            reset_integrator();
-            reset_volt_integrator();
-        }
-
         if(rpm > 8000) {
             over_rpm++;
-        }
-        else over_rpm = 0;
-
-        if(over_rpm > 5) {
-            reset_integrator();
-            reset_volt_integrator();
-            throttle_servo = 1012;
-        }
-
-        if(over_rpm > 10) {
-            //Emergency engine shutdown
-        }
-
-        if(throttle_servo < 1012) throttle_servo = 1012;
-        else if(throttle_servo > 1930) throttle_servo = 1930;
-
-
-        if(rpm == 0 && engine_control) {
-            run_timeout++;
         } else {
-            run_timeout = 0;
+            over_rpm = 0;
         }
-        if(run_timeout > 10) {
+        if(over_rpm > 10) {
+            over_rpm = 0;
+            engine_state = ENGINE_EMERGENCY_SHUTDOWN;
             engine_control = false;
-            //Emergency shutdown engine means that it stopped or sensor is broken
-            //Try to spin and check for RPM response
         }
 
-        set_servo_pwm(throttle_servo);
+        switch(engine_state) {
+            case ENGINE_STOPED:
+                thr = rc_in * max_man_thr;
+                reset_integrator();
+                reset_volt_integrator();
+                if(rpm > 500) {
+                    engine_state = ENGINE_WARMUP;
+                }
+                engine_control = false;
+                //Set ignition to off
+                break;
+            case ENGINE_START_REQUESTED:
+                break;
+            case ENGINE_STARTING_WITH_CHOKE:
+                break;
+            case ENGINE_STARTING_WO_CHOKE:
+                break;
+            case ENGINE_WARMUP:
+                thr = rc_in * max_man_thr;
+                reset_integrator();
+                reset_volt_integrator();
+                if(engine_control == true) engine_state = ENGINE_RUNNING;
+                break;
+            case ENGINE_TRANSION_TO_RUNNING:
+                break;
+            case ENGINE_RUNNING:
+                target_rrpm = 2000 + rc_in * 6000;//apply_voltage_pid(target_voltage, voltage, thr);
+                thr = apply_rpm_pid(target_rrpm, rpm);
+                if(rpm < 200) {
+                    run_timeout++;
+                } else {
+                    run_timeout = 0;
+                }
+                if(run_timeout > 10) {
+                    engine_state = ENGINE_STOPED;
+                    engine_control = false;
+                    break;
+                }
 
-        chThdSleepMilliseconds(20);
+                if(engine_control == false) engine_state = ENGINE_WARMUP;
+
+                break;
+            case ENGINE_EMERGENCY_SHUTDOWN:
+                reset_integrator();
+                reset_volt_integrator();
+                thr = 0.0f;
+                //Turn ignition off
+                //Turn POWER off
+                //
+                break;
+        }
+
+        if(thr > 1.0f) thr = 1.0f;
+        else if(thr < 0.0) thr = 0.0f;
+        set_thr_position(thr);
+
+        chThdSleepUntil(last_ex_time + MS2ST(20));
     }
 }

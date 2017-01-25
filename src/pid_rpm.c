@@ -8,8 +8,12 @@ static float d_temp = 0.0f;
 float p_term = 0.0f;
 float i_term = 0.0f;
 float d_term = 0.0f;
+systime_t last_ex = 0;
 
 float apply_rpm_pid(uint16_t target_rpm, uint16_t rpm) {
+
+    float dt = ST2US(abs(chVTGetSystemTime() - last_ex))/ 1000000.0f; //seconds
+    last_ex = chVTGetSystemTime();
 
     float Kp_rpm = rpm_pid_p / 1000.0f;
     float Ki_rpm = rpm_pid_i / 1000.0f;
@@ -29,12 +33,13 @@ float apply_rpm_pid(uint16_t target_rpm, uint16_t rpm) {
     p_term = Kp_rpm * err;
 
     //Don't change integral if output is saturated. 400RPM deadband
-    if(thr_out < 1.0f && thr_out > 0.0f && (err > 0.01f || err < -0.01f))
+    if(thr_out < 1.0f && (err > 0.01f || err < -0.01f))
         i_temp += (err);
+    if(i_temp < 0.0f) i_temp = 0.0f;
     //Calculate I term
-    i_term = Ki_rpm * i_temp;
+    i_term = Ki_rpm * i_temp * dt;
 
-    d_term = Kd_rpm * (err - d_temp);
+    d_term = Kd_rpm * (err - d_temp) / dt;
     d_temp = err;
 
     thr_out = p_term + i_term + d_term;
