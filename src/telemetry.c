@@ -14,6 +14,7 @@
 #include "pid_rpm.h"
 #include "voltage_pid.h"
 #include "servo.h"
+#include "dps6015a.h"
 
 #define SERIAL_DEVICE SD1
 
@@ -278,15 +279,17 @@ void data_stream_send(void) {
 
     if (stream_trigger(STREAM_RAW_SENSORS)) {
         mavlink_msg_rpm_send(MAVLINK_COMM_0, (float)get_rpm(), (float)target_rrpm);
-        uint16_t volt_mil = voltage * 1000;
-        mavlink_msg_sys_status_send(MAVLINK_COMM_0, 0, 0, 0, 0, volt_mil, 0, 0, 0,
+        uint16_t volt_mil = get_psu_state().voltage_out * 1000; //= voltage * 1000;
+        uint16_t cur_mil = get_psu_state().current_out * 100;
+        mavlink_msg_sys_status_send(MAVLINK_COMM_0, 0, 0, 0, 0, volt_mil, cur_mil, 0, 0,
                 0, 0, 0, 0, 0);
+        mavlink_msg_battery2_send(MAVLINK_COMM_0, voltage * 1000, -1);
     }
 
     if (stream_trigger(STREAM_RAW_CONTROLLER)) {
         if(pid_report == 1) {
         mavlink_msg_pid_tuning_send(MAVLINK_COMM_0, PID_TUNING_ROLL, (float)target_rrpm,
-                    (float)get_rpm(), 0.0f, p_term, i_term, d_term);
+                    (float)get_rpm(), 0.0f, p_term, i_term, d_term_lpf);
         } else if(pid_report == 0) {
             mavlink_msg_pid_tuning_send(MAVLINK_COMM_0, PID_TUNING_ROLL, (float)target_voltage,
                     voltage, 0.0f, volt_p_term, volt_i_term, volt_d_term);

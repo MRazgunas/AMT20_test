@@ -2,6 +2,7 @@
 #include "hal.h"
 
 #include "rpm.h"
+#include "filters.h"
 #include "parameters_d.h"
 #include "stdlib.h"
 
@@ -42,6 +43,7 @@ static void rpm_debounce_cb(void *arg) {
          * calculate RPM and assign last edge time */
         last_rpm =  60e6 / ST2US(abs(last_rising_edge - last_signal));
         last_signal = last_rising_edge;
+        last_rpm = median_filter(last_rpm); // median filter(3) rejects only one bad measurement
 
         debounce_count = 0;
 

@@ -38,6 +38,7 @@ enum {
     k_param_thr_min,
     k_param_thr_max,
     k_param_thr_rev,
+    k_param_d_lpf_beta,
 };
 
 
@@ -61,6 +62,8 @@ extern int16_t  rc1_rev;
 extern int16_t thr_min;
 extern int16_t thr_max;
 extern int16_t  thr_rev;
+
+extern float d_lpf_beta;
 
 
 void load_parameters(void);

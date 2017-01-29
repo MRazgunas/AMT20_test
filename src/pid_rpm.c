@@ -8,6 +8,7 @@ static float d_temp = 0.0f;
 float p_term = 0.0f;
 float i_term = 0.0f;
 float d_term = 0.0f;
+float d_term_lpf = 0.0f;
 systime_t last_ex = 0;
 
 float apply_rpm_pid(uint16_t target_rpm, uint16_t rpm) {
@@ -33,8 +34,12 @@ float apply_rpm_pid(uint16_t target_rpm, uint16_t rpm) {
     p_term = Kp_rpm * err;
 
     //Don't change integral if output is saturated. 400RPM deadband
-    if(thr_out < 1.0f && (err > 0.01f || err < -0.01f))
-        i_temp += (err);
+    if(thr_out < 1.0f) {
+        if(err > 0.05f || err < -0.05f)
+            i_temp += (err);
+        else
+            i_temp += err/2.0f;
+    }
     if(i_temp < 0.0f) i_temp = 0.0f;
     //Calculate I term
     i_term = Ki_rpm * i_temp * dt;
@@ -42,7 +47,9 @@ float apply_rpm_pid(uint16_t target_rpm, uint16_t rpm) {
     d_term = Kd_rpm * (err - d_temp) / dt;
     d_temp = err;
 
-    thr_out = p_term + i_term + d_term;
+    d_term_lpf = d_term_lpf - (d_lpf_beta * (d_term_lpf - d_term));
+
+    thr_out = p_term + i_term + d_term_lpf;
     if(thr_out > 1.0f)
         thr_out = 1.0f;
     else if(thr_out < 0.0f)

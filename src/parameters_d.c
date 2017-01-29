@@ -19,6 +19,7 @@ float target_voltage;
 float volt_lpf_beta;
 int16_t pid_report;
 float max_man_thr;
+float d_lpf_beta;
 
 //RC input
 int16_t rc1_min;
@@ -163,6 +164,13 @@ const struct Info var_info[] = {
         // @Description: Reverse channel 1-normal -1 reverse
         // @User: Advanced
         GSCALAR(AP_PARAM_INT16, thr_rev, "THR_REV", 1),
+
+        // @Param: PID_D_FILT
+        // @DisplayName:
+        // @Description:
+        // @User: Advanced
+        GSCALAR(AP_PARAM_FLOAT, d_lpf_beta, "PID_D_FILT", 0.4f),
+
 
         AP_VAREND,
 };

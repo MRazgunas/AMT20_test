@@ -25,12 +25,12 @@ endif
 
 # Linker extra options here.
 ifeq ($(USE_LDOPT),)
-  USE_LDOPT = 
+  USE_LDOPT =
 endif
 
 # Enable this if you want link time optimizations (LTO)
 ifeq ($(USE_LTO),)
-  USE_LTO = yes
+  USE_LTO = no
 endif
 
 # If enabled, this option allows to compile the application in THUMB mode.
@@ -125,7 +125,8 @@ CSRC = $(STARTUPSRC) \
        $(HALSRC) \
        $(PLATFORMSRC) \
        $(BOARDSRC) \
-       $(CHIBIOS)/os/hal/lib/streams/chprintf.c \
+       $(CHIBIOS)/os/hal/lib/streams/chprintf.c  \
+       $(CHIBIOS)/os/various/syscalls.c \
 	   
 CSRC += $(wildcard src/*.c)	    \
 		$(wildcard src/*/*.c)	\
@@ -174,6 +175,7 @@ BIN  = $(CP) -O binary
 # ARM-specific options here
 AOPT =
 
+ULIBS = -lm
 # THUMB-specific options here
 TOPT = -mthumb -DTHUMB
 

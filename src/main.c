@@ -38,9 +38,9 @@ static THD_FUNCTION(Thread1, arg) {
 
     chRegSetThreadName("blinker");
     while (true) {
-        palSetPad(GPIOC, GPIOC_LED1);
+       // palSetPad(GPIOC, GPIOC_LED1);
         chThdSleepMilliseconds(250);
-        palClearPad(GPIOC, GPIOC_LED1);
+        //palClearPad(GPIOC, GPIOC_LED1);
         chThdSleepMilliseconds(250);
     }
 }
@@ -117,6 +117,7 @@ int main(void) {
     init_rc_input();
     init_rpm();
     init_telemetry();
+    init_dps6015a();
 
 
     float rc_in = 0;
@@ -125,10 +126,11 @@ int main(void) {
     uint16_t run_timeout = 0;
     uint16_t over_rpm = 0;
 
-   /* chThdSleepMilliseconds(2000);
-    turn_on_output(1); */
-
     systime_t last_ex_time;
+
+    float psu_current = 2.0f;
+    bool voltage_reached = false;
+    uint8_t load_retry_count = 0;
 
     while (TRUE) {
         last_ex_time = chVTGetSystemTime();
@@ -143,7 +145,7 @@ int main(void) {
         if(target_rpm < 2000) target_rpm = 2000;
         else if(target_rpm > 8000) target_rpm = 8000; */
 
-        if(rpm > 8000) {
+        if(rpm > 7000) {
             over_rpm++;
         } else {
             over_rpm = 0;
@@ -154,6 +156,8 @@ int main(void) {
             engine_control = false;
         }
 
+        dps6015a_state psu_state = get_psu_state();
+
         switch(engine_state) {
             case ENGINE_STOPED:
                 thr = rc_in * max_man_thr;
@@ -163,6 +167,9 @@ int main(void) {
                     engine_state = ENGINE_WARMUP;
                 }
                 engine_control = false;
+                set_output_state(1);
+                set_output_current(2.0f);
+                set_output_voltage(25.0f);
                 //Set ignition to off
                 break;
             case ENGINE_START_REQUESTED:
@@ -175,9 +182,46 @@ int main(void) {
                 thr = rc_in * max_man_thr;
                 reset_integrator();
                 reset_volt_integrator();
-                if(engine_control == true) engine_state = ENGINE_RUNNING;
+                if(engine_control == true) {
+                    psu_current = 2.0f;
+                    voltage_reached = false;
+                    engine_state = ENGINE_TRANSION_TO_RUNNING;
+                }
                 break;
-            case ENGINE_TRANSION_TO_RUNNING:
+            case ENGINE_VOLTAGE_RAMP_UP:
+                if(psu_state.link_active) {
+                    psu_current = 2.0f;
+                    target_rrpm = apply_voltage_pid(target_voltage, voltage, thr);
+                    if(abs(voltage - target_voltage) < 3.0f) {
+                        engine_state = ENGINE_LOAD_RAMP_UP;
+                    }
+                } else target_rrpm = 3000;
+                thr = apply_rpm_pid(target_rrpm, rpm);
+                if(engine_control == false) engine_state = ENGINE_WARMUP;
+                break;
+            case ENGINE_LOAD_RAMP_UP:
+                if(psu_state.link_active) {
+                    if(psu_state.switch_state == SWITCH_OPEN) {
+                        target_rrpm = 3000;
+                        engine_state = ENGINE_LOAD_RAMP_DOWN;
+                        reset_volt_integrator();
+                    } else if(psu_state.switch_state == SWITCH_CC) {
+                        target_rrpm = apply_voltage_pid(target_voltage, voltage, thr);
+                        psu_current += 0.01;
+                        if(psu_current >= 9.0f) {
+                            psu_current = 9.0f;
+                            engine_state = ENGINE_RUNNING;
+                        }
+                    } else if(psu_state.switch_state == SWITCH_CV) { //Baterry full
+                        //Engine Shut down sequence
+                        target_rrpm = 3000;
+                        psu_current = 2.0f;
+                        engine_state = ENGINE_WARMUP;
+                        reset_volt_integrator();
+                    }
+                } else target_rrpm = 3000;
+                thr = apply_rpm_pid(target_rrpm, rpm);
+                if(engine_control == false) engine_state = ENGINE_WARMUP;
                 break;
             case ENGINE_RUNNING:
                 target_rrpm = 2000 + rc_in * 6000;//apply_voltage_pid(target_voltage, voltage, thr);
@@ -209,6 +253,8 @@ int main(void) {
         if(thr > 1.0f) thr = 1.0f;
         else if(thr < 0.0) thr = 0.0f;
         set_thr_position(thr);
+
+        set_output_current(psu_current);
 
         chThdSleepUntil(last_ex_time + MS2ST(20));
     }
