@@ -39,6 +39,7 @@ enum {
     k_param_thr_max,
     k_param_thr_rev,
     k_param_d_lpf_beta,
+    k_param_max_charge_current,
 };
 
 
@@ -65,6 +66,7 @@ extern int16_t  thr_rev;
 
 extern float d_lpf_beta;
 
+extern float max_charge_current;
 
 void load_parameters(void);
 

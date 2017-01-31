@@ -31,6 +31,8 @@ int16_t thr_min;
 int16_t thr_max;
 int16_t  thr_rev;
 
+float max_charge_current;
+
 
 const struct Info var_info[] = {
         // @Param: FORMAT_VERSION
@@ -170,6 +172,12 @@ const struct Info var_info[] = {
         // @Description:
         // @User: Advanced
         GSCALAR(AP_PARAM_FLOAT, d_lpf_beta, "PID_D_FILT", 0.4f),
+
+        // @Param: PID_D_FILT
+        // @DisplayName:
+        // @Description:
+        // @User: Advanced
+        GSCALAR(AP_PARAM_FLOAT, max_charge_current, "MAX_CHRG_CURR", 4.0f),
 
 
         AP_VAREND,

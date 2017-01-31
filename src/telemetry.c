@@ -279,9 +279,10 @@ void data_stream_send(void) {
 
     if (stream_trigger(STREAM_RAW_SENSORS)) {
         mavlink_msg_rpm_send(MAVLINK_COMM_0, (float)get_rpm(), (float)target_rrpm);
-        uint16_t volt_mil = get_psu_state().voltage_out * 1000; //= voltage * 1000;
-        uint16_t cur_mil = get_psu_state().current_out * 100;
-        mavlink_msg_sys_status_send(MAVLINK_COMM_0, 0, 0, 0, 0, volt_mil, cur_mil, 0, 0,
+        dps6015a_state psu_state = get_psu_state();
+        uint16_t volt_mil = psu_state.voltage_out * 1000; //= voltage * 1000;
+        uint16_t cur_mil = psu_state.current_out * 100;
+        mavlink_msg_sys_status_send(MAVLINK_COMM_0, 0, 0, 0, psu_state.switch_state, volt_mil, cur_mil, 0, 0,
                 0, 0, 0, 0, 0);
         mavlink_msg_battery2_send(MAVLINK_COMM_0, voltage * 1000, -1);
     }

@@ -5,12 +5,12 @@
 
 # Compiler options here.
 ifeq ($(USE_OPT),)
-  USE_OPT = -O0 -ggdb -falign-functions=16 #-fomit-frame-pointer
+  USE_OPT = -O0 -ggdb -falign-functions=16 -std=c11 #-fomit-frame-pointer
 endif
 
 # C specific options here (added to USE_OPT).
 ifeq ($(USE_COPT),)
-  USE_COPT = 
+  USE_COPT =
 endif
 
 # C++ specific options here (added to USE_OPT).
@@ -30,7 +30,7 @@ endif
 
 # Enable this if you want link time optimizations (LTO)
 ifeq ($(USE_LTO),)
-  USE_LTO = no
+  USE_LTO = yes
 endif
 
 # If enabled, this option allows to compile the application in THUMB mode.
@@ -99,7 +99,7 @@ include $(CHIBIOS)/os/hal/osal/rt/osal.mk
 include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/rt/ports/ARMCMx/compilers/GCC/mk/port_v7m.mk
 # Other files (optional).
-include $(CHIBIOS)/test/rt/test.mk
+#include $(CHIBIOS)/test/rt/test.mk
 
 # mavlink header generation
 MAVLINK_SUBDIR = v1.0
@@ -126,7 +126,7 @@ CSRC = $(STARTUPSRC) \
        $(PLATFORMSRC) \
        $(BOARDSRC) \
        $(CHIBIOS)/os/hal/lib/streams/chprintf.c  \
-       $(CHIBIOS)/os/various/syscalls.c \
+#       $(CHIBIOS)/os/various/syscalls.c \
 	   
 CSRC += $(wildcard src/*.c)	    \
 		$(wildcard src/*/*.c)	\
@@ -175,7 +175,7 @@ BIN  = $(CP) -O binary
 # ARM-specific options here
 AOPT =
 
-ULIBS = -lm
+ULIBS =
 # THUMB-specific options here
 TOPT = -mthumb -DTHUMB
 

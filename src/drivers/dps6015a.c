@@ -3,8 +3,8 @@
 #include "ch.h"
 #include "hal.h"
 #include "chprintf.h"
-#include "stdio.h"
-#include "string.h"
+#include <stdlib.h>
+#include <string.h>
 
 #define PSU_PORT SD3
 
@@ -12,7 +12,7 @@ bool output_on = false;
 uint16_t voltage_setpoint = 2500;
 uint16_t current_setpoint = 100;
 
-dps6015a_state psu_state = {0, 25.0f, 2.0f, 0.0f, 0.0f, 0};
+dps6015a_state psu_state = {0, 25.0f, 2.0f, 0.0f, 0.0f, 0, 0};
 static virtual_timer_t psu_timeout;
 
 static void psu_timeout_cb(void *arg) {
@@ -67,6 +67,7 @@ static THD_FUNCTION(dps6015a, arg) {
             chSysLock();
             chVTSetI(&psu_timeout, MS2ST(100), psu_timeout_cb, NULL);
             chSysUnlock();
+
             psu_state.link_active = 1;
 
             switch(state) {
@@ -92,7 +93,7 @@ static THD_FUNCTION(dps6015a, arg) {
                     if(charData == '\r' || charData == '\n') {
                         state = WAITING_FOR_SEMI;
                         counter = 0;
-                        sscanf((char *)read_value_buff, "%lu", &read_value);
+                        read_value = strtoul((char *)read_value_buff, NULL, 10);
                         if(strcmp(cmd_buf, "rv") == 0) {
                             psu_state.voltage_out = read_value / 100.0f;
                             break;
@@ -125,24 +126,20 @@ static THD_FUNCTION(dps6015atx, arg) {
         switch(state++) {
             case 0:
                 send_output_state();
-                break;
-            case 1:
                 send_output_voltage();
-                break;
-            case 2:
                 send_output_current();
                 break;
-            case 3:
+            case 1:
                 read_voltage_cmd();
                 break;
-            case 4:
+            case 2:
                 read_current_cmd();
                 break;
-            case 5:
+            case 3:
                 read_state_machine_cmd();
                 break;
         }
-        if(state == 6) {
+        if(state == 4) {
             state = 0;
         }
         chThdSleepMilliseconds(20);
@@ -160,21 +157,23 @@ void send_output_state(void) {
 
 void set_output_voltage(float voltage) {
     if(voltage > 25.0f) voltage = 25.0f;
+    else if(voltage < 0.0f) voltage = 0.0f;
     voltage_setpoint = voltage * 100.0f;
-    psu_state.voltage_set = voltage;
 }
 
 void send_output_voltage(void) {
+    psu_state.voltage_set = voltage_setpoint / 100.0f;
     chprintf((BaseSequentialStream *)&PSU_PORT, ":01su%04u\n", voltage_setpoint);
 }
 
 void set_output_current(float current) {
     if(current > 15.0f) current = 15.0f;
+    else if(current < 0.0f) current = 0.0f;
     current_setpoint = current * 100;
-    psu_state.current_set = current;
 }
 
 void send_output_current(void) {
+    psu_state.current_set = current_setpoint / 100.0f;
     chprintf((BaseSequentialStream *)&PSU_PORT, ":01si%04u\n", current_setpoint);
 }
 

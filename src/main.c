@@ -85,6 +85,18 @@ void apply_voltage_filter(float voltage_raw) {
     voltage = voltage - (volt_lpf_beta * (voltage - voltage_raw));
 }
 
+float abs_f(float a) {
+    if(a < 0.0f) a = -a;
+    return a;
+}
+
+bool check_psu_for_pass_through(dps6015a_state state) {
+    if(state.switch_state == SWITCH_OPEN ||
+            (abs_f(state.current_set - state.current_out) > 0.5f && state.switch_state != SWITCH_CV))
+        return true;
+    return false;
+}
+
 int main(void) {
     halInit();
     chSysInit();
@@ -102,7 +114,7 @@ int main(void) {
     /*
      * Creates the example threads.
      */
-    chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO + 1, Thread1,
+    chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO, Thread1,
     NULL);
 
     //Dump first page of eeprom
@@ -129,8 +141,8 @@ int main(void) {
     systime_t last_ex_time;
 
     float psu_current = 2.0f;
-    bool voltage_reached = false;
     uint8_t load_retry_count = 0;
+    bool charge_battery = true;
 
     while (TRUE) {
         last_ex_time = chVTGetSystemTime();
@@ -156,6 +168,16 @@ int main(void) {
             engine_control = false;
         }
 
+        if(rpm < 200  && engine_state != ENGINE_STOPED) {
+            run_timeout++;
+        } else {
+            run_timeout = 0;
+        }
+        if(run_timeout > 10) {
+            engine_state = ENGINE_STOPED;
+            engine_control = false;
+        }
+
         dps6015a_state psu_state = get_psu_state();
 
         switch(engine_state) {
@@ -167,8 +189,8 @@ int main(void) {
                     engine_state = ENGINE_WARMUP;
                 }
                 engine_control = false;
+                psu_current = 2.0f;
                 set_output_state(1);
-                set_output_current(2.0f);
                 set_output_voltage(25.0f);
                 //Set ignition to off
                 break;
@@ -184,66 +206,97 @@ int main(void) {
                 reset_volt_integrator();
                 if(engine_control == true) {
                     psu_current = 2.0f;
-                    voltage_reached = false;
-                    engine_state = ENGINE_TRANSION_TO_RUNNING;
+                    engine_state = ENGINE_VOLTAGE_RAMP_UP;
                 }
                 break;
             case ENGINE_VOLTAGE_RAMP_UP:
                 if(psu_state.link_active) {
                     psu_current = 2.0f;
                     target_rrpm = apply_voltage_pid(target_voltage, voltage, thr);
-                    if(abs(voltage - target_voltage) < 3.0f) {
+                    if((voltage - target_voltage) > -3.0f) {
                         engine_state = ENGINE_LOAD_RAMP_UP;
                     }
-                } else target_rrpm = 3000;
+                } else target_rrpm = 2500;
+
                 thr = apply_rpm_pid(target_rrpm, rpm);
                 if(engine_control == false) engine_state = ENGINE_WARMUP;
                 break;
             case ENGINE_LOAD_RAMP_UP:
                 if(psu_state.link_active) {
-                    if(psu_state.switch_state == SWITCH_OPEN) {
-                        target_rrpm = 3000;
+                    if(check_psu_for_pass_through(psu_state)) {
+                        target_rrpm = 2500;
                         engine_state = ENGINE_LOAD_RAMP_DOWN;
                         reset_volt_integrator();
                     } else if(psu_state.switch_state == SWITCH_CC) {
                         target_rrpm = apply_voltage_pid(target_voltage, voltage, thr);
                         psu_current += 0.01;
-                        if(psu_current >= 9.0f) {
-                            psu_current = 9.0f;
+                        if(psu_current >= max_charge_current) {
+                            psu_current = max_charge_current;
+                            load_retry_count = 0;
                             engine_state = ENGINE_RUNNING;
                         }
                     } else if(psu_state.switch_state == SWITCH_CV) { //Baterry full
                         //Engine Shut down sequence
-                        target_rrpm = 3000;
-                        psu_current = 2.0f;
-                        engine_state = ENGINE_WARMUP;
+                        target_rrpm = 2500;
+                        charge_battery = false;
+                        engine_state = ENGINE_LOAD_RAMP_DOWN;
                         reset_volt_integrator();
                     }
-                } else target_rrpm = 3000;
+                } else target_rrpm = 2500;
                 thr = apply_rpm_pid(target_rrpm, rpm);
                 if(engine_control == false) engine_state = ENGINE_WARMUP;
                 break;
-            case ENGINE_RUNNING:
-                target_rrpm = 2000 + rc_in * 6000;//apply_voltage_pid(target_voltage, voltage, thr);
+            case ENGINE_LOAD_RAMP_DOWN:
+                if(psu_state.link_active) {
+                    psu_current -= 0.5;
+                    target_rrpm = 2500;
+                    reset_volt_integrator();
+                    if(psu_current <= 2.0f) {
+                        psu_current = 2.0f;
+                        if(charge_battery) {
+                            engine_state = ENGINE_VOLTAGE_RAMP_UP;
+                            load_retry_count++;
+                        } else {
+                            charge_battery = true;
+                            engine_control = false;
+                            engine_state = ENGINE_WARMUP;
+                        }
+                    }
+
+                } else target_rrpm = 2500;
+
                 thr = apply_rpm_pid(target_rrpm, rpm);
-                if(rpm < 200) {
-                    run_timeout++;
-                } else {
-                    run_timeout = 0;
+                break;
+            case ENGINE_RUNNING:
+                target_rrpm = apply_voltage_pid(target_voltage, voltage, thr);//2000 + rc_in * 6000;
+                if(!psu_state.link_active) {
+                    target_rrpm = 2500;
+                    reset_volt_integrator();
+                    //Shutdown engine (?)
                 }
-                if(run_timeout > 10) {
-                    engine_state = ENGINE_STOPED;
-                    engine_control = false;
-                    break;
+                if(check_psu_for_pass_through(psu_state)) {
+                    target_rrpm = 2500;
+                    reset_volt_integrator();
+                    engine_state = ENGINE_LOAD_RAMP_DOWN;
                 }
 
-                if(engine_control == false) engine_state = ENGINE_WARMUP;
+                if(psu_state.switch_state == SWITCH_CV) {
+                    charge_battery = false;
+                    engine_state = ENGINE_LOAD_RAMP_DOWN;
+                }
 
+                if(engine_control == false) {
+                    charge_battery = false;
+                    engine_state = ENGINE_LOAD_RAMP_DOWN;
+                }
+
+                thr = apply_rpm_pid(target_rrpm, rpm);
                 break;
             case ENGINE_EMERGENCY_SHUTDOWN:
                 reset_integrator();
                 reset_volt_integrator();
                 thr = 0.0f;
+                psu_current = 0.0f;
                 //Turn ignition off
                 //Turn POWER off
                 //
