@@ -139,6 +139,7 @@ void handle_mavlink_message(mavlink_message_t msg) {
 		}
 	    case MAVLINK_MSG_ID_PARAM_REQUEST_READ:
 	    {
+	        //TODO: implement handle_param_request_read
 	        //handle_param_request_read(msg);
 	        break;
 	    }
@@ -336,9 +337,9 @@ void init_telemetry() {
     palClearPad(GPIOC, GPIOC_LED2);
 	chVTObjectInit(&led_vt);
 
-	chThdCreateStatic(waMavlinkThread, sizeof(waMavlinkThread), NORMALPRIO + 2,
+	chThdCreateStatic(waMavlinkThread, sizeof(waMavlinkThread), NORMALPRIO,
 			MavlinkThread, NULL);
-	chThdCreateStatic(waMavlinkTx, sizeof(waMavlinkTx), NORMALPRIO + 1,
+	chThdCreateStatic(waMavlinkTx, sizeof(waMavlinkTx), NORMALPRIO,
 	            MavlinkTx, NULL);
 }
 

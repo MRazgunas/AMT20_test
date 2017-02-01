@@ -101,6 +101,7 @@ int main(void) {
     halInit();
     chSysInit();
 
+    chThdSetPriority(NORMALPRIO+2);
     /*
      * Activates the serial driver 1 using the driver default configuration.
      * PA9(TX) and PA10(RX) are routed to USART1.
@@ -114,7 +115,7 @@ int main(void) {
     /*
      * Creates the example threads.
      */
-    chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO, Thread1,
+    chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO-2, Thread1,
     NULL);
 
     //Dump first page of eeprom
