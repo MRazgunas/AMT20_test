@@ -58,6 +58,9 @@ static THD_FUNCTION(dps6015a, arg) {
     while (true) {
         chEvtWaitOneTimeout(EVENT_MASK(1), TIME_INFINITE);
         flags = chEvtGetAndClearFlags(&serialData);
+        if(flags != SD_BREAK_DETECTED) {
+          (void) flags;
+        }
         do {
             charData = chnGetTimeout(&PSU_PORT, TIME_IMMEDIATE);
             if(charData > 0xFF || charData == Q_TIMEOUT) {
@@ -105,6 +108,10 @@ static THD_FUNCTION(dps6015a, arg) {
                         break;
                     }
                     read_value_buff[counter++] = charData;
+                    if(counter == 10) {
+                      counter = 0;
+                      state = WAITING_FOR_SEMI;
+                    }
                     break;
             }
         } while(charData != Q_TIMEOUT);
@@ -203,7 +210,7 @@ void init_dps6015a() {
     chVTObjectInit(&psu_timeout);
 
     chThdCreateStatic(wadps6015a, sizeof(wadps6015a), NORMALPRIO, dps6015a, NULL);
-    chThdCreateStatic(wadps6015atx, sizeof(wadps6015atx), NORMALPRIO - 1, dps6015atx, NULL);
+    chThdCreateStatic(wadps6015atx, sizeof(wadps6015atx), NORMALPRIO, dps6015atx, NULL);
 }
 
 
