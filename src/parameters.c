@@ -441,6 +441,17 @@ const Info * find_using_name(const char *name, ap_var_type *ptype) {
     return NULL;
 }
 
+const Info * find_by_index(uint32_t key, ap_var_type *ptype) {
+    for(uint16_t i = 0; i < _num_vars; i++) {
+        uint8_t type = _var_info[i].type;
+        if(_var_info[i].key == key) {
+            *ptype = (ap_var_type)type;
+            return &_var_info[i];
+        }
+    }
+    return NULL;
+}
+
 // notify GCS of current value of parameter
 void notify(void * ptr) {
 

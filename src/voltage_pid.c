@@ -18,7 +18,7 @@ void reset_volt_integrator(void) {
 }
 
 
-uint16_t apply_voltage_pid(float target_voltage, float voltage, float thr) {
+uint16_t apply_voltage_pid(float target_voltage, float voltage, float thr, uint16_t rpm) {
 
     float dt = ST2US(abs(chVTGetSystemTime() - last_ex))/ 1000000.0f;
     last_ex = chVTGetSystemTime();
@@ -38,11 +38,12 @@ uint16_t apply_voltage_pid(float target_voltage, float voltage, float thr) {
     float err = target_voltage - voltage;
 
     volt_p_term = Kp_volt * err;
-
-    //Don't change integral if output or throttle is saturated
-    if((rpm_out > 2000  && rpm_out < 8000) && thr < 0.999f) { //&&
-//            (err > 0.8f || err < -0.8f)) {
-        i_temp_volt += (err);
+    int16_t rpm_err = (int16_t)rpm_out - (int16_t)rpm;
+    //Don't change integral if output or throttle is saturated or rpm controller hasn't stabilized
+    if((rpm_out > 2000  && rpm_out < 8000) && thr < 0.999f ){//&& (err < -1.0f || err > 1.0f)){
+        if((rpm_err < 300 && rpm_err > -300) || rpm_out < 3800) { //&&
+            i_temp_volt += (err);
+        }
     }
     //Calculate I term
     volt_i_term = Ki_volt * i_temp_volt * dt;

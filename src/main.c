@@ -92,7 +92,7 @@ float abs_f(float a) {
 
 bool check_psu_for_pass_through(dps6015a_state state) {
     if(state.switch_state == SWITCH_OPEN ||
-            (abs_f(state.current_set - state.current_out) > 0.5f && state.switch_state != SWITCH_CV))
+            (abs_f(state.current_set - state.current_out) > 0.8f && state.switch_state != SWITCH_CV))
         return true;
     return false;
 }
@@ -131,7 +131,6 @@ int main(void) {
     init_rpm();
     init_telemetry();
     init_dps6015a();
-
 
     float rc_in = 0;
     uint16_t rpm = 0;
@@ -205,15 +204,15 @@ int main(void) {
                 thr = rc_in * max_man_thr;
                 reset_integrator();
                 reset_volt_integrator();
+                psu_current = 2.0f;
                 if(engine_control == true) {
-                    psu_current = 2.0f;
                     engine_state = ENGINE_VOLTAGE_RAMP_UP;
                 }
                 break;
             case ENGINE_VOLTAGE_RAMP_UP:
                 if(psu_state.link_active) {
                     psu_current = 2.0f;
-                    target_rrpm = apply_voltage_pid(target_voltage, voltage, thr);
+                    target_rrpm = apply_voltage_pid(target_voltage, voltage, thr, rpm);
                     if((voltage - target_voltage) > -3.0f) {
                         engine_state = ENGINE_LOAD_RAMP_UP;
                     }
@@ -229,7 +228,7 @@ int main(void) {
                         engine_state = ENGINE_LOAD_RAMP_DOWN;
                         reset_volt_integrator();
                     } else if(psu_state.switch_state == SWITCH_CC) {
-                        target_rrpm = apply_voltage_pid(target_voltage, voltage, thr);
+                        target_rrpm = apply_voltage_pid(target_voltage, voltage, thr, rpm);
                         psu_current += 0.01;
                         if(psu_current >= max_charge_current) {
                             psu_current = max_charge_current;
@@ -269,7 +268,7 @@ int main(void) {
                 thr = apply_rpm_pid(target_rrpm, rpm);
                 break;
             case ENGINE_RUNNING:
-                target_rrpm = apply_voltage_pid(target_voltage, voltage, thr);//2000 + rc_in * 6000;
+                target_rrpm = apply_voltage_pid(target_voltage, voltage, thr, rpm);//2000 + rc_in * 6000;
                 if(!psu_state.link_active) {
                     target_rrpm = 2500;
                     reset_volt_integrator();

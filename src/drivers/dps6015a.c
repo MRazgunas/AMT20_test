@@ -3,6 +3,7 @@
 #include "ch.h"
 #include "hal.h"
 #include "chprintf.h"
+#include "filters.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -93,24 +94,24 @@ static THD_FUNCTION(dps6015a, arg) {
                     }
                     break;
                 case RECEIVING_VALUE:
-                    if(charData == '\r' || charData == '\n') {
-                        state = WAITING_FOR_SEMI;
-                        counter = 0;
-                        read_value = strtoul((char *)read_value_buff, NULL, 10);
-                        if(strcmp(cmd_buf, "rv") == 0) {
-                            psu_state.voltage_out = read_value / 100.0f;
-                            break;
-                        } else if(strcmp(cmd_buf, "rj") == 0) {
-                            psu_state.current_out = read_value / 100.0f;
-                        } else if(strcmp(cmd_buf, "rc") == 0) {
-                            psu_state.switch_state = read_value;
-                        }
-                        break;
-                    }
                     read_value_buff[counter++] = charData;
                     if(counter == 10) {
                       counter = 0;
                       state = WAITING_FOR_SEMI;
+                    }
+                    if(charData == '\r' || charData == '\n') {
+                        state = WAITING_FOR_SEMI;
+                        counter = 0;
+                        read_value = strtoul((char *)read_value_buff, NULL, 10);
+                        if(strncmp(cmd_buf, "rv", 2) == 0) {
+                            psu_state.voltage_out = read_value / 100.0f;
+                        } else if(strncmp(cmd_buf, "rj", 2) == 0) {
+                            read_value = median_filter_psu(read_value);
+                            psu_state.current_out = read_value / 100.0f;
+                        } else if(strncmp(cmd_buf, "rc", 2) == 0) {
+                            psu_state.switch_state = read_value;
+                        }
+                        break;
                     }
                     break;
             }

@@ -42,10 +42,12 @@ uint8_t stream_ticks[NUM_STREAMS];
 void handle_mavlink_message(mavlink_message_t msg);
 void handle_param_request_list(mavlink_message_t *msg);
 void handle_param_set(mavlink_message_t *msg);
+void handle_param_request_read(mavlink_message_t *msg);
 void queued_param_send(void);
 bool stream_trigger(enum streams stream_num);
 void data_stream_send(void);
 void blink(void);
+uint8_t mav_var_type(ap_var_type t);
 
 static void led_cb(void *arg) {
     (void) arg;
@@ -139,8 +141,7 @@ void handle_mavlink_message(mavlink_message_t msg) {
 		}
 	    case MAVLINK_MSG_ID_PARAM_REQUEST_READ:
 	    {
-	        //TODO: implement handle_param_request_read
-	        //handle_param_request_read(msg);
+	        handle_param_request_read(&msg);
 	        break;
 	    }
 	    case MAVLINK_MSG_ID_PARAM_SET:
@@ -177,6 +178,42 @@ void handle_param_request_list(mavlink_message_t *msg) {
     _queued_parameter_index = 0;
     _queued_parameter_count = count_parameters();
 }
+
+void handle_param_request_read(mavlink_message_t *msg)
+{
+    mavlink_param_request_read_t packet;
+    mavlink_msg_param_request_read_decode(msg, &packet);
+
+    const Info * vp;
+    ap_var_type p_type;
+    char param_name[AP_MAX_NAME_SIZE+1];
+
+    if (packet.param_index != -1) {
+        vp = find_by_index(packet.param_index, &p_type);
+        if (vp == NULL) {
+            return;
+        }
+        strncpy(param_name, vp->name, sizeof(param_name));
+        param_name[AP_MAX_NAME_SIZE] = 0;
+    } else {
+        strncpy(param_name, packet.param_id, AP_MAX_NAME_SIZE);
+        param_name[AP_MAX_NAME_SIZE] = 0;
+        vp = find_using_name(param_name, &p_type);
+        if (vp == NULL) {
+            return;
+        }
+    }
+
+    float value = cast_to_float(_queued_parameter_type, vp->ptr);
+    mavlink_msg_param_value_send(
+        MAVLINK_COMM_0,
+        param_name,
+        value,
+        mav_var_type(p_type),
+        count_parameters(),
+        packet.param_index);
+}
+
 
 // return a MAVLink variable type given a AP_Param type
 uint8_t mav_var_type(ap_var_type t)
@@ -283,7 +320,8 @@ void data_stream_send(void) {
         dps6015a_state psu_state = get_psu_state();
         uint16_t volt_mil = psu_state.voltage_out * 1000; //= voltage * 1000;
         uint16_t cur_mil = psu_state.current_out * 100;
-        mavlink_msg_sys_status_send(MAVLINK_COMM_0, 0, 0, 0, psu_state.switch_state, volt_mil, cur_mil, 0, 0,
+        uint32_t cur_set_mil = psu_state.current_set * 100;
+        mavlink_msg_sys_status_send(MAVLINK_COMM_0, 0, 0, cur_set_mil, psu_state.switch_state, volt_mil, cur_mil, 0, 0,
                 0, 0, 0, 0, 0);
         mavlink_msg_battery2_send(MAVLINK_COMM_0, voltage * 1000, -1);
     }

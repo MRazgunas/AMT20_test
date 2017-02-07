@@ -175,7 +175,7 @@ BIN  = $(CP) -O binary
 # ARM-specific options here
 AOPT =
 
-ULIBS =
+ULIBS = -lm
 # THUMB-specific options here
 TOPT = -mthumb -DTHUMB
 

@@ -98,6 +98,7 @@ float cast_to_float(ap_var_type type, const void * ptr);
 const Info * next_scalar(ParamToken *token, ap_var_type *ptype);
 const Info * find_using_name(const char *name, ap_var_type *ptype);
 bool save_parameter(const void * ptr, bool force_save);
+const Info * find_by_index(uint32_t key, ap_var_type *ptype);
 
 
 #endif /* SRC_PARAMETERS_H_ */

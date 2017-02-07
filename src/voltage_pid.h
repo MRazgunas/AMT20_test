@@ -6,7 +6,7 @@ extern float volt_i_term;
 extern float volt_d_term;
 
 
-uint16_t apply_voltage_pid(float target_voltage, float voltage, float thr);
+uint16_t apply_voltage_pid(float target_voltage, float voltage, float thr, uint16_t rpm);
 void reset_volt_integrator(void);
 
 #endif /* SRC_VOLTAGE_PID_H_ */

@@ -35,10 +35,8 @@ float apply_rpm_pid(uint16_t target_rpm, uint16_t rpm) {
 
     //Don't change integral if output is saturated. 400RPM deadband
     if(thr_out < 1.0f) {
-        if(err > 0.05f || err < -0.05f)
+   //     if(!(err > -0.04f && err < 0.02f))
             i_temp += (err);
-        else
-            i_temp += err/2.0f;
     }
     if(i_temp < 0.0f) i_temp = 0.0f;
     //Calculate I term
