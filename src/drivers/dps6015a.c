@@ -106,7 +106,7 @@ static THD_FUNCTION(dps6015a, arg) {
                         if(strncmp(cmd_buf, "rv", 2) == 0) {
                             psu_state.voltage_out = read_value / 100.0f;
                         } else if(strncmp(cmd_buf, "rj", 2) == 0) {
-                            read_value = median_filter_psu(read_value);
+                            //read_value = median_filter_psu(read_value);
                             psu_state.current_out = read_value / 100.0f;
                         } else if(strncmp(cmd_buf, "rc", 2) == 0) {
                             psu_state.switch_state = read_value;
@@ -134,8 +134,6 @@ static THD_FUNCTION(dps6015atx, arg) {
         switch(state++) {
             case 0:
                 send_output_state();
-                send_output_voltage();
-                send_output_current();
                 break;
             case 1:
                 read_voltage_cmd();
@@ -146,11 +144,17 @@ static THD_FUNCTION(dps6015atx, arg) {
             case 3:
                 read_state_machine_cmd();
                 break;
+            case 4:
+                send_output_voltage();
+                break;
+            case 5:
+                send_output_current();
+                break;
         }
-        if(state == 4) {
+        if(state == 6) {
             state = 0;
         }
-        chThdSleepMilliseconds(20);
+        chThdSleepMilliseconds(12);
     }
 
 }
@@ -205,6 +209,14 @@ bool isCharNumber(char a) {
 
 dps6015a_state get_psu_state(void) {
     return psu_state;
+}
+
+uint8_t calculate_lrc(uint8_t cmd, uint8_t n) {
+    uin16_t sum = 0;
+    for(uint8_t i = 0; i < n; i++) {
+        sum += cmd[i];
+    }
+    return sum % 27 + 64;
 }
 
 void init_dps6015a() {
