@@ -40,6 +40,7 @@ enum {
     k_param_thr_rev,
     k_param_d_lpf_beta,
     k_param_max_charge_current,
+    k_param_rpm_out_lpf_beta,
 };
 
 
@@ -54,6 +55,7 @@ extern float target_voltage;
 extern float volt_lpf_beta;
 extern int16_t pid_report;
 extern float max_man_thr;
+extern float rpm_out_lpf_beta;
 
 //RC input
 extern int16_t rc1_min;

@@ -6,6 +6,7 @@ extern uint16_t last_rpm;
 void init_rpm(void);
 
 uint16_t get_rpm(void);
+uint16_t no_filt_rpm(void);
 void apply_filter(void);
 
 

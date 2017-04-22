@@ -112,6 +112,12 @@ void apply_filter(void) {
     lpf_rpm = lpf_rpm - (rpm_lpf_beta * (lpf_rpm - last_rpm));
 }
 
+uint16_t no_filt_rpm(void) {
+    if(!init)
+        return 0;
+    return last_rpm;
+}
+
 uint16_t get_rpm(void) {
     if(!init)
         return 0;

@@ -20,6 +20,7 @@ float volt_lpf_beta;
 int16_t pid_report;
 float max_man_thr;
 float d_lpf_beta;
+float rpm_out_lpf_beta;
 
 //RC input
 int16_t rc1_min;
@@ -178,6 +179,8 @@ const struct Info var_info[] = {
         // @Description:
         // @User: Advanced
         GSCALAR(AP_PARAM_FLOAT, max_charge_current, "MAX_CHRG_CURR", 4.0f),
+
+        GSCALAR(AP_PARAM_FLOAT, rpm_out_lpf_beta, "RPM_OUT_BETA", 0.2f),
 
 
         AP_VAREND,

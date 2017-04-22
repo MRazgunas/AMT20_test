@@ -19,13 +19,13 @@ static virtual_timer_t psu_timeout;
 static void psu_timeout_cb(void *arg) {
     (void) arg;
     psu_state.link_active = 0;
+    //palClearPad(GPIOC, GPIOC_LED1);
 }
 
 enum {
     WAITING_FOR_SEMI,
     RECEIVING_ADDRESS,
-    RECEIVING_COMMAND,
-    RECEIVING_VALUE,
+    RECEIVING_RESPONSE,
 };
 
 void send_output_state(void);
@@ -35,6 +35,7 @@ void read_voltage_cmd(void);
 void read_current_cmd(void);
 void read_state_machine_cmd(void);
 bool isCharNumber(char a);
+uint8_t calculate_lrc(uint8_t *cmd, uint8_t n);
 
 static THD_WORKING_AREA(wadps6015a, 2000);
 static THD_FUNCTION(dps6015a, arg) {
@@ -49,8 +50,7 @@ static THD_FUNCTION(dps6015a, arg) {
     chEvtRegisterMask((event_source_t *) chnGetEventSource(&PSU_PORT),
             &serialData, EVENT_MASK(1));
 
-    char cmd_buf[2] = {0};
-    uint8_t read_value_buff[10];
+    uint8_t cmd_buff[20];
     uint32_t read_value = 0;
 
     set_output_state(true);
@@ -68,9 +68,11 @@ static THD_FUNCTION(dps6015a, arg) {
                 break;
             }
 
+
             chSysLock();
             chVTSetI(&psu_timeout, MS2ST(100), psu_timeout_cb, NULL);
             chSysUnlock();
+
 
             psu_state.link_active = 1;
 
@@ -78,37 +80,41 @@ static THD_FUNCTION(dps6015a, arg) {
                 case WAITING_FOR_SEMI:
                     if(charData == ':') {
                         state = RECEIVING_ADDRESS;
+                        counter = 0;
                     }
                     break;
                 case RECEIVING_ADDRESS:
-                    if(++counter == 2) {
-                        state = RECEIVING_COMMAND;
+                    if(isCharNumber(charData)) {
+                        if(++counter == 2) {
+                            counter = 0;
+                            state = RECEIVING_RESPONSE;
+                        }
+                    } else {
                         counter = 0;
+                        state = WAITING_FOR_SEMI;
                     }
+
                     break;
-                case RECEIVING_COMMAND:
-                    cmd_buf[counter++] = (uint8_t) charData;
-                    if(counter == 2) {
-                        counter = 0;
-                        state = RECEIVING_VALUE;
-                    }
-                    break;
-                case RECEIVING_VALUE:
-                    read_value_buff[counter++] = charData;
-                    if(counter == 10) {
+                case RECEIVING_RESPONSE:
+                    cmd_buff[counter++] = (uint8_t) charData;
+                    if(counter == 20) {
                       counter = 0;
                       state = WAITING_FOR_SEMI;
                     }
                     if(charData == '\r' || charData == '\n') {
                         state = WAITING_FOR_SEMI;
-                        counter = 0;
-                        read_value = strtoul((char *)read_value_buff, NULL, 10);
-                        if(strncmp(cmd_buf, "rv", 2) == 0) {
+                        uint8_t lrc_byte = calculate_lrc(cmd_buff, counter - 2 );
+                        if(lrc_byte != cmd_buff[counter - 2]) {
+                            palClearPad(GPIOC, GPIOC_LED1);
+                           // break;
+                        }
+                        read_value = strtoul((char *)&cmd_buff[2], NULL, 10);
+                        if(strncmp((char *)cmd_buff, "rv", 2) == 0) {
                             psu_state.voltage_out = read_value / 100.0f;
-                        } else if(strncmp(cmd_buf, "rj", 2) == 0) {
+                        } else if(strncmp((char *)cmd_buff, "rj", 2) == 0) {
                             //read_value = median_filter_psu(read_value);
                             psu_state.current_out = read_value / 100.0f;
-                        } else if(strncmp(cmd_buf, "rc", 2) == 0) {
+                        } else if(strncmp((char *)cmd_buff, "rc", 2) == 0) {
                             psu_state.switch_state = read_value;
                         }
                         break;
@@ -133,7 +139,11 @@ static THD_FUNCTION(dps6015atx, arg) {
         else palClearPad(GPIOC, GPIOC_LED1);
         switch(state++) {
             case 0:
+                send_output_current();
+                chThdSleepMilliseconds(10);
                 send_output_state();
+                chThdSleepMilliseconds(10);
+                send_output_voltage();
                 break;
             case 1:
                 read_voltage_cmd();
@@ -144,17 +154,11 @@ static THD_FUNCTION(dps6015atx, arg) {
             case 3:
                 read_state_machine_cmd();
                 break;
-            case 4:
-                send_output_voltage();
-                break;
-            case 5:
-                send_output_current();
-                break;
         }
-        if(state == 6) {
+        if(state == 4) {
             state = 0;
         }
-        chThdSleepMilliseconds(12);
+        chThdSleepMilliseconds(15);
     }
 
 }
@@ -211,19 +215,20 @@ dps6015a_state get_psu_state(void) {
     return psu_state;
 }
 
-uint8_t calculate_lrc(uint8_t cmd, uint8_t n) {
-    uin16_t sum = 0;
+uint8_t calculate_lrc(uint8_t *cmd, uint8_t n) {
+    uint16_t sum = 0;
     for(uint8_t i = 0; i < n; i++) {
         sum += cmd[i];
     }
-    return sum % 27 + 64;
+    return sum % 26 + 64;
 }
 
 void init_dps6015a() {
     chVTObjectInit(&psu_timeout);
+    palClearPad(GPIOC, GPIOC_LED1);
 
-    chThdCreateStatic(wadps6015a, sizeof(wadps6015a), NORMALPRIO, dps6015a, NULL);
-    chThdCreateStatic(wadps6015atx, sizeof(wadps6015atx), NORMALPRIO, dps6015atx, NULL);
+    chThdCreateStatic(wadps6015a, sizeof(wadps6015a), NORMALPRIO+2, dps6015a, NULL);
+    chThdCreateStatic(wadps6015atx, sizeof(wadps6015atx), NORMALPRIO+1, dps6015atx, NULL);
 }
 
 

@@ -9,6 +9,7 @@ float volt_p_term = 0.0f;
 float volt_i_term = 0.0f;
 float volt_d_term = 0.0f;
 static uint16_t rpm_out = 0;
+static float rpm_out_lpf = 0;
 static float i_temp_volt = 0.0f;
 static float d_temp_volt = 0.0f;
 static systime_t last_ex = 0;
@@ -41,7 +42,7 @@ uint16_t apply_voltage_pid(float target_voltage, float voltage, float thr, uint1
     int16_t rpm_err = (int16_t)rpm_out - (int16_t)rpm;
     //Don't change integral if output or throttle is saturated or rpm controller hasn't stabilized
     if((rpm_out > 2000  && rpm_out < 8000) && thr < 0.999f ){//&& (err < -1.0f || err > 1.0f)){
-        if((rpm_err < 300 && rpm_err > -300) || rpm_out < 3800) { //&&
+        if((rpm_err < 500 && rpm_err > -500) || rpm_out < 3600) { //&&
             i_temp_volt += (err);
         }
     }
@@ -53,6 +54,10 @@ uint16_t apply_voltage_pid(float target_voltage, float voltage, float thr, uint1
 //    if(err > 0.8f || err < -0.8f)
     rpm_out = 2000.0f + volt_p_term + volt_i_term + volt_d_term; //Offset by 2000RPM
 
+    rpm_out_lpf = rpm_out_lpf - (rpm_out_lpf_beta * (rpm_out_lpf - rpm_out));
+
+    rpm_out = rpm_out_lpf;
+
     if(rpm_out > 8000)
         rpm_out = 8000;
     else if(rpm_out < 2000)
@@ -63,3 +68,4 @@ uint16_t apply_voltage_pid(float target_voltage, float voltage, float thr, uint1
 
     return rpm_out;
 }
+

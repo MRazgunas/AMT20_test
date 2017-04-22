@@ -90,10 +90,20 @@ float abs_f(float a) {
     return a;
 }
 
+static uint8_t pos_count_pass = 0;
+
 bool check_psu_for_pass_through(dps6015a_state state) {
     if(state.switch_state == SWITCH_OPEN ||
-            (abs_f(state.current_set - state.current_out) > 0.8f && state.switch_state != SWITCH_CV))
+            (abs_f(state.current_set - state.current_out) > 0.8f && state.switch_state != SWITCH_CV)) {
         return true;
+    }
+//    if(abs_f(state.current_set - state.current_out) > 0.8f) {
+//        pos_count_pass++;
+//    } else pos_count_pass = 0;
+//
+//    if(pos_count_pass > 6) {
+//        return true;
+//    }
     return false;
 }
 
@@ -157,12 +167,12 @@ int main(void) {
         if(target_rpm < 2000) target_rpm = 2000;
         else if(target_rpm > 8000) target_rpm = 8000; */
 
-        if(rpm > 7000) {
+        if(rpm > 8000) {
             over_rpm++;
         } else {
             over_rpm = 0;
         }
-        if(over_rpm > 10) {
+        if(over_rpm > 20) {
             over_rpm = 0;
             engine_state = ENGINE_EMERGENCY_SHUTDOWN;
             engine_control = false;
@@ -226,6 +236,7 @@ int main(void) {
                     if(check_psu_for_pass_through(psu_state)) {
                         target_rrpm = 2500;
                         engine_state = ENGINE_LOAD_RAMP_DOWN;
+                        reset_integrator();
                         reset_volt_integrator();
                     } else if(psu_state.switch_state == SWITCH_CC) {
                         target_rrpm = apply_voltage_pid(target_voltage, voltage, thr, rpm);
@@ -277,11 +288,14 @@ int main(void) {
                 if(check_psu_for_pass_through(psu_state)) {
                     target_rrpm = 2500;
                     reset_volt_integrator();
+                    reset_integrator(); //drop throttle
                     engine_state = ENGINE_LOAD_RAMP_DOWN;
                 }
 
                 if(psu_state.switch_state == SWITCH_CV) {
                     charge_battery = false;
+                    reset_integrator();
+                    reset_volt_integrator();
                     engine_state = ENGINE_LOAD_RAMP_DOWN;
                 }
 
@@ -296,7 +310,7 @@ int main(void) {
                 reset_integrator();
                 reset_volt_integrator();
                 thr = 0.0f;
-                psu_current = 0.0f;
+                psu_current = 3.0f;
                 //Turn ignition off
                 //Turn POWER off
                 //
