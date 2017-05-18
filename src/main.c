@@ -240,7 +240,7 @@ int main(void) {
                         reset_volt_integrator();
                     } else if(psu_state.switch_state == SWITCH_CC) {
                         target_rrpm = apply_voltage_pid(target_voltage, voltage, thr, rpm);
-                        psu_current += 0.01;
+                        psu_current += load_ramp_speed/50.0f;
                         if(psu_current >= max_charge_current) {
                             psu_current = max_charge_current;
                             load_retry_count = 0;
@@ -311,6 +311,10 @@ int main(void) {
                 reset_volt_integrator();
                 thr = 0.0f;
                 psu_current = 3.0f;
+                engine_control = false;
+                charge_battery = true;
+                state = ENGINE_WARMUP;
+
                 //Turn ignition off
                 //Turn POWER off
                 //

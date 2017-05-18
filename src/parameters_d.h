@@ -41,6 +41,7 @@ enum {
     k_param_d_lpf_beta,
     k_param_max_charge_current,
     k_param_rpm_out_lpf_beta,
+    k_param_load_ramp_speed,
 };
 
 
@@ -56,6 +57,7 @@ extern float volt_lpf_beta;
 extern int16_t pid_report;
 extern float max_man_thr;
 extern float rpm_out_lpf_beta;
+extern float load_ramp_speed;
 
 //RC input
 extern int16_t rc1_min;

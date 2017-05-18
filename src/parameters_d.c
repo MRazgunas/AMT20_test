@@ -22,6 +22,8 @@ float max_man_thr;
 float d_lpf_beta;
 float rpm_out_lpf_beta;
 
+float load_ramp_speed;
+
 //RC input
 int16_t rc1_min;
 int16_t rc1_max;
@@ -181,6 +183,11 @@ const struct Info var_info[] = {
         GSCALAR(AP_PARAM_FLOAT, max_charge_current, "MAX_CHRG_CURR", 4.0f),
 
         GSCALAR(AP_PARAM_FLOAT, rpm_out_lpf_beta, "RPM_OUT_BETA", 0.2f),
+
+        // @Param: LOAD_RMP_SPD
+        // @DisplayName:
+        // @Description: Amps/s
+        GSCALAR(AP_PARAM_FLOAT, load_ramp_speed, "LOAD_RMP_SPD", 1.0f),
 
 
         AP_VAREND,
