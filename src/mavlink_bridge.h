@@ -8,7 +8,7 @@
 #include "hal.h"
 
 
-mavlink_system_t mavlink_system = {1, 100}; /* SysID, CompID */
+mavlink_system_t mavlink_system = {1, 67}; /* SysID, CompID */
 
 /**
  * @brief Send one char (uint8_t) over a comm channel

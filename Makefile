@@ -88,6 +88,7 @@ PROJECT = kmti_ecu
 
 # Imported source files and paths
 CHIBIOS = modules/ChibiOS
+CHIBIOS_CONTRIB = modules/ChibiOS-Contrib
 # Startup files.
 include $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC/mk/startup_stm32f1xx.mk
 # HAL-OSAL files (optional).
@@ -100,6 +101,8 @@ include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/rt/ports/ARMCMx/compilers/GCC/mk/port_v7m.mk
 # Other files (optional).
 #include $(CHIBIOS)/test/rt/test.mk
+include $(CHIBIOS_CONTRIB)/os/hal/hal.mk
+include $(CHIBIOS_CONTRIB)/os/hal/ports/STM32/STM32F1xx/platform.mk
 
 # mavlink header generation
 MAVLINK_SUBDIR = v1.0
@@ -112,7 +115,7 @@ MAVLINK_OUTPUT_DIR = $(BUILDDIR)/modules/mavlink/$(MAVLINK_SUBDIR)
 #@echo Generating MAVLink headers...
 #goto mavlink module directory and run the most recent generator script
 #@echo "Generating C code using mavgen.py located at" /modules/mavlink/
-#$(info $(shell python $(MAVLINK_DIR)/pymavlink/tools/mavgen.py --lang=C --wire-protocol=$(MAVLINK_WIRE_PROTOCOL) --output=$(MAVLINK_OUTPUT_DIR) $(MESSAGE_DEFINITIONS)/ardupilotmega.xml))
+$(info $(shell python $(MAVLINK_DIR)/pymavlink/tools/mavgen.py --lang=C --wire-protocol=$(MAVLINK_WIRE_PROTOCOL) --output=$(MAVLINK_OUTPUT_DIR) $(MESSAGE_DEFINITIONS)/ardupilotmega.xml))
 
 
 

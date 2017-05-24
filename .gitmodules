@@ -4,3 +4,6 @@
 [submodule "modules/mavlink"]
 	path = modules/mavlink
 	url = https://github.com/MRazgunas/mavlink.git
+[submodule "modules/ChibiOS-contrib"]
+	path = modules/ChibiOS-contrib
+	url = https://github.com/MRazgunas/ChibiOS-contrib.git

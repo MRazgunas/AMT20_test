@@ -9,12 +9,8 @@
 #include "chprintf.h"
 #include "parameters.h"
 #include "parameters_d.h"
-#include "rc_input.h"
-#include "rpm.h"
-#include "pid_rpm.h"
-#include "voltage_pid.h"
-#include "servo.h"
-#include "dps6015a.h"
+#include "Storm32_telemetry.h"
+#include "km_math.h"
 
 #define SERIAL_DEVICE SD1
 
@@ -24,17 +20,11 @@ ParamToken _queued_parameter_token;
 ap_var_type _queued_parameter_type;
 uint16_t _queued_parameter_index;
 uint16_t _queued_parameter_count;
-float voltage;
 
-uint16_t target_rpm;
-uint16_t target_rrpm;
+float target_gimbal_pitch = 0.0f;
+float target_gimbal_yaw = 0.0f;
 
-/* If true board has full control over engine, otherwise just pass-through */
-bool engine_control = false;
-
-
-/* Engine state */
-uint8_t engine_state = ENGINE_STOPED;
+float last_plane_yaw = 0.0f;
 
 // number of 50Hz ticks until we next send this stream
 uint8_t stream_ticks[NUM_STREAMS];
@@ -66,8 +56,8 @@ static THD_WORKING_AREA(waMavlinkThread, 2000);
 static THD_FUNCTION(MavlinkThread, arg) {
 
 	(void) arg;
-	static mavlink_message_t msg;
-	static mavlink_status_t status;
+	mavlink_message_t msg;
+	mavlink_status_t status;
 	msg_t charData;
 
 	event_listener_t serialData;
@@ -113,11 +103,7 @@ static THD_FUNCTION(MavlinkTx, arg) {
 	while(true) {
 	    systime_t now = ST2MS(chVTGetSystemTime());
 	    if(abs(now - last_1hz) > 1000) {
-	        if(engine_control) system_mode = MAV_MODE_AUTO_ARMED;
-	        else system_mode = MAV_MODE_AUTO_DISARMED;
-	        if(engine_state == ENGINE_EMERGENCY_SHUTDOWN) system_state = MAV_STATE_EMERGENCY;
-
-	        mavlink_msg_heartbeat_send(MAVLINK_COMM_0, system_type, autopilot_type, system_mode, engine_state, system_state);
+	        mavlink_msg_heartbeat_send(MAVLINK_COMM_0, system_type, autopilot_type, system_mode, 0, system_state);
 	        last_1hz = now;
 	    }
 	    data_stream_send();
@@ -158,15 +144,20 @@ void handle_mavlink_message(mavlink_message_t msg) {
             mavlink_command_long_t pack;
             mavlink_msg_command_long_decode(&msg, &pack);
             switch (pack.command) {
-                case MAV_CMD_COMPONENT_ARM_DISARM : {
-                    if(pack.param1 == 1.0f) engine_control = true;
-                    else engine_control = false;
+                case MAV_CMD_DO_MOUNT_CONTROL : {
+                    target_gimbal_pitch = pack.param1;
+                    target_gimbal_yaw = pack.param3;
                     break;
                 }
             }
             mavlink_msg_command_ack_send(MAVLINK_COMM_0, pack.command,
                                    MAV_RESULT_ACCEPTED);
 		}
+        case MAVLINK_MSG_ID_ATTITUDE: {
+            mavlink_attitude_t pack;
+            mavlink_msg_attitude_decode(&msg, &pack);
+            last_plane_yaw = -RAD_TO_DEG*pack.yaw;
+        }
 	}
 }
 
@@ -316,33 +307,24 @@ void data_stream_send(void) {
     }
 
     if (stream_trigger(STREAM_RAW_SENSORS)) {
-        mavlink_msg_rpm_send(MAVLINK_COMM_0, (float)no_filt_rpm(), (float)target_rrpm);
-        dps6015a_state psu_state = get_psu_state();
-        uint16_t volt_mil = psu_state.voltage_out * 1000; //= voltage * 1000;
-        uint16_t cur_mil = psu_state.current_out * 100;
-        uint32_t cur_set_mil = psu_state.current_set * 100;
-        mavlink_msg_sys_status_send(MAVLINK_COMM_0, 0, 0, cur_set_mil, psu_state.switch_state, volt_mil, cur_mil, 0, 0,
-                0, 0, 0, 0, 0);
-        mavlink_msg_battery2_send(MAVLINK_COMM_0, voltage * 1000, -1);
+        float encoder_pos = QEID1.tim->CNT * 360.0f/2048.0f;
+        struct SToRM32_reply_data_struct data = *get_storm_state();
+        mavlink_msg_rotary_encoder_send(MAVLINK_COMM_0, encoder_pos-encoder_offset, encoder_pos);
+        mavlink_msg_pid_tuning_send(MAVLINK_COMM_0, 0, encoder_pos-encoder_offset, encoder_pos, 0.0f, 0.0f, 0.0f, 0.0f);
+        mavlink_msg_mount_status_send(MAVLINK_COMM_0, 255, 0, data.imu1_pitch, data.imu1_roll, (encoder_pos-encoder_offset)*100);
+        mavlink_msg_attitude_send(MAVLINK_COMM_0, 0,
+                wrap_PI(DEG_TO_RAD * data.imu1_roll/100.0f),
+                wrap_PI(-DEG_TO_RAD * data.imu1_pitch/100.0f),
+                wrap_PI(-DEG_TO_RAD * (encoder_pos-encoder_offset)), 0.0f, 0.0f, 0.0f);
     }
 
     if (stream_trigger(STREAM_RAW_CONTROLLER)) {
-        if(pid_report == 1) {
-        mavlink_msg_pid_tuning_send(MAVLINK_COMM_0, PID_TUNING_ROLL, (float)target_rrpm,
-                    (float)get_rpm(), 0.0f, p_term, i_term, d_term_lpf);
-        } else if(pid_report == 0) {
-            mavlink_msg_pid_tuning_send(MAVLINK_COMM_0, PID_TUNING_ROLL, (float)target_voltage,
-                    voltage, 0.0f, volt_p_term, volt_i_term, volt_d_term);
-        }
-
-
     }
 
     if (stream_trigger(STREAM_RC_CHANNELS)) {
-        mavlink_msg_rc_channels_raw_send(MAVLINK_COMM_0, ST2MS(chVTGetSystemTime()),
-                0, get_rc_pwm(), 0, 0, 0, 0, 0, 0, 0, 0);
-        mavlink_msg_servo_output_raw_send(MAVLINK_COMM_0, ST2MS(chVTGetSystemTime()),
-                0, get_thr_pwm(), 0, 0, 0, 0, 0, 0, 0);
+    }
+    if(stream_trigger(STREAM_REQUEST_DATA_STREAM)) {
+        mavlink_msg_request_data_stream_send(MAVLINK_COMM_0, 1, 1, MAV_DATA_STREAM_EXTRA1, 10, 1);
     }
 }
 

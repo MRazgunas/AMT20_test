@@ -17,16 +17,21 @@
 #include "ch.h"
 #include "hal.h"
 #include "chprintf.h"
-#include "drivers/eeprom.h"
+#include "math.h"
 
+#include "eeprom.h"
+
+#include "Storm32_telemetry.h"
 #include "telemetry.h"
-#include "servo.h"
-#include "rc_input.h"
-#include "rpm.h"
 #include "parameters_d.h"
-#include "pid_rpm.h"
-#include "voltage_pid.h"
-#include "dps6015a.h"
+#include "km_math.h"
+
+enum State_machine {
+    WAITING_FOR_STORM_BOOTUP,
+    CALIBRATING_ZERO_POSITION,
+    WORKING,
+}state;
+
 
 /*
  * Blinker thread #1.
@@ -38,74 +43,54 @@ static THD_FUNCTION(Thread1, arg) {
 
     chRegSetThreadName("blinker");
     while (true) {
-       // palSetPad(GPIOC, GPIOC_LED1);
+		palSetPad(GPIOC, GPIOC_LED1);
         chThdSleepMilliseconds(250);
-        //palClearPad(GPIOC, GPIOC_LED1);
+        palClearPad(GPIOC, GPIOC_LED1);
         chThdSleepMilliseconds(250);
     }
 }
 
-/*
- * ADC conversion group.
- * Mode:        Linear buffer, 8 samples of 1 channel, SW triggered.
- * Channels:    IN0.
- */
-static const ADCConversionGroup adcVoltage = {
-FALSE,
-1,
-NULL,
-NULL,//adcerrorcallback,
-0, 0, /* CR1, CR2 */
-0, /* SMPR1 */
-ADC_SMPR2_SMP_AN6(ADC_SAMPLE_41P5), /* SMPR2 */
-ADC_SQR1_NUM_CH(1), /* SQR1 */
-0, /* SQR2 */
-ADC_SQR3_SQ1_N(ADC_CHANNEL_IN6)  /* SQR3 */
+static void zero_point(EXTDriver *extp, expchannel_t channel) {
+  (void)extp;
+  (void)channel;
+  //chSysLockFromISR();
+  //chSysUnlockFromISR();
+  QEID1.tim->CNT = 0;
+  if(state == CALIBRATING_ZERO_POSITION) {
+      state = WORKING;
+      set_target_angles(0.0f, 0.0f, 0.0f, true);
+  }
+}
+
+
+static const EXTConfig extcfg = {
+  {
+    {EXT_CH_MODE_DISABLED, NULL},
+    {EXT_CH_MODE_DISABLED, NULL},
+    {EXT_CH_MODE_DISABLED, NULL},
+    {EXT_CH_MODE_DISABLED, NULL},
+    {EXT_CH_MODE_DISABLED, NULL},
+    {EXT_CH_MODE_DISABLED, NULL},
+    {EXT_CH_MODE_DISABLED, NULL},
+    {EXT_CH_MODE_DISABLED, NULL},
+    {EXT_CH_MODE_DISABLED, NULL},
+    {EXT_CH_MODE_DISABLED, NULL},
+    {EXT_CH_MODE_RISING_EDGE | EXT_CH_MODE_AUTOSTART | EXT_MODE_GPIOA, zero_point},
+    {EXT_CH_MODE_DISABLED, NULL},
+    {EXT_CH_MODE_DISABLED, NULL},
+    {EXT_CH_MODE_DISABLED, NULL},
+    {EXT_CH_MODE_DISABLED, NULL},
+    {EXT_CH_MODE_DISABLED, NULL}
+  }
 };
 
-static adcsample_t samples1[8];
-
-float measure_voltage(void) {
-    float voltage;
-
-    adcConvert(&ADCD1, &adcVoltage, samples1, 8);
-    uint16_t sum = 0;
-    for(int i = 0; i < 8; i++) {
-        sum += samples1[i];
-    }
-    float avg = sum / 8.0f;
-
-    voltage = avg*0.0282307938;
-
-    return voltage;
-}
-
-void apply_voltage_filter(float voltage_raw) {
-    //Low pass filter rpm
-    voltage = voltage - (volt_lpf_beta * (voltage - voltage_raw));
-}
-
-float abs_f(float a) {
-    if(a < 0.0f) a = -a;
-    return a;
-}
-
-static uint8_t pos_count_pass = 0;
-
-bool check_psu_for_pass_through(dps6015a_state state) {
-    if(state.switch_state == SWITCH_OPEN ||
-            (abs_f(state.current_set - state.current_out) > 0.8f && state.switch_state != SWITCH_CV)) {
-        return true;
-    }
-//    if(abs_f(state.current_set - state.current_out) > 0.8f) {
-//        pos_count_pass++;
-//    } else pos_count_pass = 0;
-//
-//    if(pos_count_pass > 6) {
-//        return true;
-//    }
-    return false;
-}
+static const SerialConfig sd3_config =
+{
+  115200,
+  0,
+  USART_CR2_STOP1_BITS | USART_CR2_LINEN,
+  0
+};
 
 int main(void) {
     halInit();
@@ -117,216 +102,121 @@ int main(void) {
      * PA9(TX) and PA10(RX) are routed to USART1.
      */
     sdStart(&SD1, NULL);
-    sdStart(&SD3, NULL);
+    sdStart(&SD3, &sd3_config);
 
-    adcStart(&ADCD1, NULL);
     init_eeprom();
+    load_parameters();
+    init_telemetry();
 
-    /*
-     * Creates the example threads.
-     */
+    static QEIConfig qeicfg = {
+      QEI_MODE_QUADRATURE,
+      QEI_SINGLE_EDGE,
+      //QEI_BOTH_EDGES,
+      QEI_DIRINV_FALSE,
+      0,
+      0,
+      2047,
+    };
+
+    qeiStart(&QEID1, &qeicfg);
+    qeiEnable(&QEID1);
+
+    init_sotmr32_telemetry();
+
     chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO-2, Thread1,
     NULL);
 
-    //Dump first page of eeprom
-//    uint8_t buff[EEPROM_PAGE_SIZE*3];
-//    read_block(buff, 0x0, EEPROM_PAGE_SIZE*3);
+   // uint32_t teset = QEID1.tim->ARR;
 
+    float yaw_angle = 0.0f;
+    //chThdSleep(S2ST(30));
 
-    load_parameters();
+    state = WAITING_FOR_STORM_BOOTUP;
+    float target_yaw = 0.0f;
+    float storm_last_reading = 0.0f;
+    int32_t storm_rotation_count = 0;
 
-
-    init_servo();
-    init_rc_input();
-    init_rpm();
-    init_telemetry();
-    init_dps6015a();
-
-    float rc_in = 0;
-    uint16_t rpm = 0;
-    float thr = 0.0f;
-    uint16_t run_timeout = 0;
-    uint16_t over_rpm = 0;
-
-    systime_t last_ex_time;
-
-    float psu_current = 2.0f;
-    uint8_t load_retry_count = 0;
-    bool charge_battery = true;
+    uint32_t count1 = 0;
 
     while (TRUE) {
-        last_ex_time = chVTGetSystemTime();
-        rc_in = get_norm_rc_input();
+        systime_t current_time = ST2MS(chVTGetSystemTime());
 
-        apply_filter();
-        rpm = get_rpm();
-        apply_voltage_filter(measure_voltage()); //This sets voltage
-
-        //PWM -> RPM
-       /* target_rpm = 6.5359*width - 4614.4;
-        if(target_rpm < 2000) target_rpm = 2000;
-        else if(target_rpm > 8000) target_rpm = 8000; */
-
-        if(rpm > 8000) {
-            over_rpm++;
-        } else {
-            over_rpm = 0;
-        }
-        if(over_rpm > 20) {
-            over_rpm = 0;
-            engine_state = ENGINE_EMERGENCY_SHUTDOWN;
-            engine_control = false;
-        }
-
-        if(rpm < 200  && engine_state != ENGINE_STOPED) {
-            run_timeout++;
-        } else {
-            run_timeout = 0;
-        }
-        if(run_timeout > 10) {
-            engine_state = ENGINE_STOPED;
-            engine_control = false;
-        }
-
-        dps6015a_state psu_state = get_psu_state();
-
-        switch(engine_state) {
-            case ENGINE_STOPED:
-                thr = rc_in * max_man_thr;
-                reset_integrator();
-                reset_volt_integrator();
-                if(rpm > 500) {
-                    engine_state = ENGINE_WARMUP;
-                }
-                engine_control = false;
-                psu_current = 2.0f;
-                set_output_state(1);
-                set_output_voltage(25.0f);
-                //Set ignition to off
-                break;
-            case ENGINE_START_REQUESTED:
-                break;
-            case ENGINE_STARTING_WITH_CHOKE:
-                break;
-            case ENGINE_STARTING_WO_CHOKE:
-                break;
-            case ENGINE_WARMUP:
-                thr = rc_in * max_man_thr;
-                reset_integrator();
-                reset_volt_integrator();
-                psu_current = 2.0f;
-                if(engine_control == true) {
-                    engine_state = ENGINE_VOLTAGE_RAMP_UP;
+        switch(state) {
+            case WAITING_FOR_STORM_BOOTUP:
+                extStart(&EXTD1, &extcfg);
+                if(get_storm_state()->state == 6) {
+                    state = CALIBRATING_ZERO_POSITION;
+                    storm_rotation_count = 0;
                 }
                 break;
-            case ENGINE_VOLTAGE_RAMP_UP:
-                if(psu_state.link_active) {
-                    psu_current = 2.0f;
-                    target_rrpm = apply_voltage_pid(target_voltage, voltage, thr, rpm);
-                    if((voltage - target_voltage) > -3.0f) {
-                        engine_state = ENGINE_LOAD_RAMP_UP;
-                    }
-                } else target_rrpm = 2500;
-
-                thr = apply_rpm_pid(target_rrpm, rpm);
-                if(engine_control == false) engine_state = ENGINE_WARMUP;
+            case CALIBRATING_ZERO_POSITION:
+                set_target_angles(0.0f, 0.0f, 370.0f, true);
                 break;
-            case ENGINE_LOAD_RAMP_UP:
-                if(psu_state.link_active) {
-                    if(check_psu_for_pass_through(psu_state)) {
-                        target_rrpm = 2500;
-                        engine_state = ENGINE_LOAD_RAMP_DOWN;
-                        reset_integrator();
-                        reset_volt_integrator();
-                    } else if(psu_state.switch_state == SWITCH_CC) {
-                        target_rrpm = apply_voltage_pid(target_voltage, voltage, thr, rpm);
-                        psu_current += load_ramp_speed/50.0f;
-                        if(psu_current >= max_charge_current) {
-                            psu_current = max_charge_current;
-                            load_retry_count = 0;
-                            engine_state = ENGINE_RUNNING;
+            case WORKING: {
+                extStop(&EXTD1);
+                if(get_storm_state()->state != 6) {
+                    state = WAITING_FOR_STORM_BOOTUP;
+                    break;
+                }
+                float storm_yaw = get_storm_state()->imu1_yaw / 100.0f;
+                float yaw_diff = storm_yaw - storm_last_reading;
+
+                if(yaw_diff < -200.0f) {
+                    storm_rotation_count++;
+                } else if(yaw_diff > 200.0f) {
+                    storm_rotation_count--;
+                }
+
+                storm_last_reading = storm_yaw;
+
+                uint32_t cycle = cycle_time * 50;
+                //test
+                switch(point_mode) {
+                case 1:
+                    if (count1 % cycle == 0) {
+                        if (target_gimbal_yaw == 0.0f) {
+                            target_gimbal_yaw = point_angle;
                         }
-                    } else if(psu_state.switch_state == SWITCH_CV) { //Baterry full
-                        //Engine Shut down sequence
-                        target_rrpm = 2500;
-                        charge_battery = false;
-                        engine_state = ENGINE_LOAD_RAMP_DOWN;
-                        reset_volt_integrator();
-                    }
-                } else target_rrpm = 2500;
-                thr = apply_rpm_pid(target_rrpm, rpm);
-                if(engine_control == false) engine_state = ENGINE_WARMUP;
-                break;
-            case ENGINE_LOAD_RAMP_DOWN:
-                if(psu_state.link_active) {
-                    psu_current -= 0.5;
-                    target_rrpm = 2500;
-                    reset_volt_integrator();
-                    if(psu_current <= 2.0f) {
-                        psu_current = 2.0f;
-                        if(charge_battery) {
-                            engine_state = ENGINE_VOLTAGE_RAMP_UP;
-                            load_retry_count++;
-                        } else {
-                            charge_battery = true;
-                            engine_control = false;
-                            engine_state = ENGINE_WARMUP;
+                        else if (target_gimbal_yaw == point_angle) {
+                            target_gimbal_yaw = -point_angle;
+                        }
+                        else {
+                            target_gimbal_yaw = 0.0f;
                         }
                     }
+                    count1++;
+                    target_gimbal_pitch = point_pitch;
+                case 2:
+                    if (count1 % cycle == 0) {
+                        if (target_gimbal_yaw == 0.0f) {
+                            target_gimbal_yaw = point_angle;
+                        }
+                        else {
+                            target_gimbal_yaw = 0.0f;
+                        }
+                    }
+                    count1++;
+                    target_gimbal_pitch = point_pitch;
+                }
 
-                } else target_rrpm = 2500;
+             /*
+*/                //======================================
 
-                thr = apply_rpm_pid(target_rrpm, rpm);
+
+                float encoder_pos = wrap180(QEID1.tim->CNT * 360.0f/2048.0f - encoder_offset, 1);
+                float diff = wrap180(encoder_pos - target_gimbal_yaw, 1);
+                //float diff = encoder_pos - target_gimbal_yaw;
+                storm_yaw = wrap180(storm_yaw, 1) + 360.0f*storm_rotation_count;
+                target_yaw = storm_yaw - diff;
+
+
+                set_target_angles(target_gimbal_pitch, 0.0f, target_yaw, true);
+               // chprintf((BaseSequentialStream *)&SD1, "%i %i %i\n", yaw, encd, diff);
                 break;
-            case ENGINE_RUNNING:
-                target_rrpm = apply_voltage_pid(target_voltage, voltage, thr, rpm);//2000 + rc_in * 6000;
-                if(!psu_state.link_active) {
-                    target_rrpm = 2500;
-                    reset_volt_integrator();
-                    //Shutdown engine (?)
-                }
-                if(check_psu_for_pass_through(psu_state)) {
-                    target_rrpm = 2500;
-                    reset_volt_integrator();
-                    reset_integrator(); //drop throttle
-                    engine_state = ENGINE_LOAD_RAMP_DOWN;
-                }
-
-                if(psu_state.switch_state == SWITCH_CV) {
-                    charge_battery = false;
-                    reset_integrator();
-                    reset_volt_integrator();
-                    engine_state = ENGINE_LOAD_RAMP_DOWN;
-                }
-
-                if(engine_control == false) {
-                    charge_battery = false;
-                    engine_state = ENGINE_LOAD_RAMP_DOWN;
-                }
-
-                thr = apply_rpm_pid(target_rrpm, rpm);
-                break;
-            case ENGINE_EMERGENCY_SHUTDOWN:
-                reset_integrator();
-                reset_volt_integrator();
-                thr = 0.0f;
-                psu_current = 3.0f;
-                engine_control = false;
-                charge_battery = true;
-                state = ENGINE_WARMUP;
-
-                //Turn ignition off
-                //Turn POWER off
-                //
-                break;
+            }
         }
+        update_storm32();
 
-        if(thr > 1.0f) thr = 1.0f;
-        else if(thr < 0.0) thr = 0.0f;
-        set_thr_position(thr);
-
-        set_output_current(psu_current);
-
-        chThdSleepUntil(last_ex_time + MS2ST(20));
+        chThdSleepMilliseconds(20);
     }
 }
